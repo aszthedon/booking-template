@@ -1,0 +1,165 @@
+'use client';
+
+import { useState } from 'react';
+
+type BookingRow = {
+  id: string;
+  client_name: string | null;
+  client_email: string | null;
+  appointment_date: string | null;
+  appointment_time: string | null;
+  status: string | null;
+  payment_status: string | null;
+  amount_due: number | null;
+  amount_paid: number | null;
+  created_at: string | null;
+  services: {
+    name: string | null;
+  } | null;
+  service_variations: {
+    name: string | null;
+    price: number | null;
+  } | null;
+};
+
+export default function AdminBookingsTable({
+  bookings,
+}: {
+  bookings: BookingRow[];
+}) {
+  const [rows, setRows] = useState(bookings);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  async function handleSave(id: string) {
+    const row = rows.find((b) => b.id === id);
+    if (!row) return;
+
+    setSavingId(id);
+
+    const response = await fetch('/api/admin/bookings/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id,
+        status: row.status,
+        payment_status: row.payment_status,
+      }),
+    });
+
+    const result = await response.json();
+    setSavingId(null);
+
+    if (!response.ok) {
+      alert(result.error || 'Failed to update booking.');
+      return;
+    }
+
+    alert('Booking updated successfully.');
+  }
+
+  function updateRow(
+    id: string,
+    field: 'status' | 'payment_status',
+    value: string
+  ) {
+    setRows((prev) =>
+      prev.map((row) =>
+        row.id === id ? { ...row, [field]: value } : row
+      )
+    );
+  }
+
+  return (
+    <div className="card card-body" style={{ marginTop: 24 }}>
+      {rows.length === 0 ? (
+        <p>No bookings yet.</p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={th}>Client</th>
+                <th style={th}>Email</th>
+                <th style={th}>Service</th>
+                <th style={th}>Variation</th>
+                <th style={th}>Date</th>
+                <th style={th}>Time</th>
+                <th style={th}>Booking Status</th>
+                <th style={th}>Payment Status</th>
+                <th style={th}>Due</th>
+                <th style={th}>Paid</th>
+                <th style={th}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((b) => (
+                <tr key={b.id}>
+                  <td style={td}>{b.client_name || '—'}</td>
+                  <td style={td}>{b.client_email || '—'}</td>
+                  <td style={td}>{b.services?.name || '—'}</td>
+                  <td style={td}>{b.service_variations?.name || '—'}</td>
+                  <td style={td}>{b.appointment_date || '—'}</td>
+                  <td style={td}>{b.appointment_time || '—'}</td>
+
+                  <td style={td}>
+                    <select
+                      value={b.status || 'pending'}
+                      onChange={(e) =>
+                        updateRow(b.id, 'status', e.target.value)
+                      }
+                    >
+                      <option value="pending">pending</option>
+                      <option value="confirmed">confirmed</option>
+                      <option value="completed">completed</option>
+                      <option value="cancelled">cancelled</option>
+                    </select>
+                  </td>
+
+                  <td style={td}>
+                    <select
+                      value={b.payment_status || 'unpaid'}
+                      onChange={(e) =>
+                        updateRow(b.id, 'payment_status', e.target.value)
+                      }
+                    >
+                      <option value="unpaid">unpaid</option>
+                      <option value="paid">paid</option>
+                      <option value="refunded">refunded</option>
+                    </select>
+                  </td>
+
+                  <td style={td}>${b.amount_due ?? 0}</td>
+                  <td style={td}>${b.amount_paid ?? 0}</td>
+
+                  <td style={td}>
+                    <button
+                      className="button"
+                      onClick={() => handleSave(b.id)}
+                      disabled={savingId === b.id}
+                    >
+                      {savingId === b.id ? 'Saving...' : 'Save'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const th: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '10px',
+  borderBottom: '1px solid #ddd',
+  whiteSpace: 'nowrap',
+};
+
+const td: React.CSSProperties = {
+  padding: '10px',
+  borderBottom: '1px solid #eee',
+  whiteSpace: 'nowrap',
+  verticalAlign: 'top',
+};
