@@ -38,6 +38,7 @@ export default function BookingPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
+  const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -71,6 +72,47 @@ export default function BookingPage() {
     }
 
     setVariations(data || []);
+  }
+
+  async function uploadPhotos(bookingId: string, clientEmail: string) {
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      const cleanName = file.name.replace(/\s+/g, '-').toLowerCase();
+      const filePath = `${bookingId}/${Date.now()}-${cleanName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('inspiration-photos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type,
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        continue;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('inspiration-photos')
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      const { error: photoInsertError } = await supabase
+        .from('booking_photos')
+        .insert({
+          booking_id: bookingId,
+          client_email: clientEmail,
+          file_path: filePath,
+          public_url: publicUrl,
+        });
+
+      if (photoInsertError) {
+        console.error('Photo record insert error:', photoInsertError);
+      }
+    }
   }
 
   async function handleBookingAndPayment() {
@@ -111,6 +153,8 @@ export default function BookingPage() {
         setIsSubmitting(false);
         return;
       }
+
+      await uploadPhotos(booking.id, email);
 
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
@@ -191,6 +235,23 @@ export default function BookingPage() {
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your Name" />
       <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your Email" />
 
+      <div style={{ marginTop: 16 }}>
+        <label htmlFor="photos">Upload Inspiration Photos</label>
+        <input
+          id="photos"
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(e) => {
+            const selected = Array.from(e.target.files || []);
+            setFiles(selected);
+          }}
+        />
+        <p className="muted" style={{ marginTop: 8 }}>
+          You can upload multiple inspiration photos before checkout.
+        </p>
+      </div>
+
       <p style={{ marginTop: 12 }}>
         Deposit due today: <strong>${selectedDepositAmount || 0}</strong>
       </p>
@@ -200,4 +261,5 @@ export default function BookingPage() {
       </button>
     </main>
   );
+}
 }
