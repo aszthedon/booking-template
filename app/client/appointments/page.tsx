@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import ClientAppointmentsManager from '@/components/ClientAppointmentsManager';
 
 type BookingRow = {
   id: string;
@@ -92,46 +93,7 @@ export default async function ClientAppointmentsPage() {
         <Card label="Completed" value={completedBookings.length} />
       </div>
 
-      <div className="card card-body" style={{ marginTop: 24 }}>
-        {bookings.length === 0 ? (
-          <p>You have no bookings yet.</p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={th}>Service</th>
-                  <th style={th}>Variation</th>
-                  <th style={th}>Date</th>
-                  <th style={th}>Time</th>
-                  <th style={th}>Booking Status</th>
-                  <th style={th}>Payment Status</th>
-                  <th style={th}>Amount Due</th>
-                  <th style={th}>Amount Paid</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((b) => (
-                  <tr key={b.id}>
-                    <td style={td}>{b.services?.name || '—'}</td>
-                    <td style={td}>{b.service_variations?.name || '—'}</td>
-                    <td style={td}>{b.appointment_date || '—'}</td>
-                    <td style={td}>{b.appointment_time || '—'}</td>
-                    <td style={td}>
-                      <StatusBadge value={b.status} />
-                    </td>
-                    <td style={td}>
-                      <PaymentBadge value={b.payment_status} />
-                    </td>
-                    <td style={td}>${b.amount_due ?? 0}</td>
-                    <td style={td}>${b.amount_paid ?? 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <ClientAppointmentsManager bookings={bookings} />
     </main>
   );
 }
@@ -143,52 +105,4 @@ function Card({ label, value }: { label: string; value: number }) {
       <h2>{value}</h2>
     </div>
   );
-}
-
-function StatusBadge({ value }: { value: string | null }) {
-  const color =
-    value === 'confirmed'
-      ? '#e6f7ec'
-      : value === 'pending'
-      ? '#fff4e5'
-      : value === 'completed'
-      ? '#e8f2ff'
-      : '#eee';
-
-  return <span style={badge(color)}>{value || '—'}</span>;
-}
-
-function PaymentBadge({ value }: { value: string | null }) {
-  const color =
-    value === 'paid'
-      ? '#e8f2ff'
-      : value === 'unpaid'
-      ? '#fff1f1'
-      : '#eee';
-
-  return <span style={badge(color)}>{value || '—'}</span>;
-}
-
-const th: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '10px',
-  borderBottom: '1px solid #ddd',
-  whiteSpace: 'nowrap',
-};
-
-const td: React.CSSProperties = {
-  padding: '10px',
-  borderBottom: '1px solid #eee',
-  whiteSpace: 'nowrap',
-  verticalAlign: 'top',
-};
-
-function badge(bg: string): React.CSSProperties {
-  return {
-    padding: '5px 10px',
-    borderRadius: '999px',
-    background: bg,
-    fontSize: '0.8rem',
-    fontWeight: 600,
-  };
 }
