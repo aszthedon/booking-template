@@ -26,6 +26,7 @@ export default function BookingPage() {
 
   const [services, setServices] = useState<Service[]>([]);
   const [variations, setVariations] = useState<Variation[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
   const [selectedService, setSelectedService] = useState('');
   const [selectedServiceName, setSelectedServiceName] = useState('');
@@ -40,6 +41,7 @@ export default function BookingPage() {
 
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
     loadServices();
@@ -72,6 +74,24 @@ export default function BookingPage() {
     }
 
     setVariations(data || []);
+  }
+
+  async function loadAvailability(selectedDate: string) {
+    setLoadingSlots(true);
+    setTime('');
+
+    const response = await fetch(`/api/availability?date=${selectedDate}`);
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('Availability error:', result);
+      setAvailableSlots([]);
+      setLoadingSlots(false);
+      return;
+    }
+
+    setAvailableSlots(result.availableSlots || []);
+    setLoadingSlots(false);
   }
 
   async function uploadPhotos(bookingId: string, clientEmail: string) {
@@ -142,15 +162,23 @@ export default function BookingPage() {
           appointment_time: time,
           status: 'pending',
           payment_status: 'unpaid',
-          amount_due: selectedDepositAmount
+          amount_due: selectedDepositAmount,
         })
         .select()
         .single();
 
       if (bookingError || !booking) {
         console.error('Booking insert error:', bookingError);
-        alert(bookingError?.message || 'Failed to create booking.');
+
+        if (bookingError?.message?.toLowerCase().includes('duplicate') ||
+            bookingError?.message?.toLowerCase().includes('unique')) {
+          alert('That time slot was just taken. Please choose another time.');
+        } else {
+          alert(bookingError?.message || 'Failed to create booking.');
+        }
+
         setIsSubmitting(false);
+        await loadAvailability(date);
         return;
       }
 
@@ -164,8 +192,8 @@ export default function BookingPage() {
           serviceName: selectedServiceName,
           variationName: selectedVariationName,
           customerEmail: email,
-          depositAmount: selectedDepositAmount
-        })
+          depositAmount: selectedDepositAmount,
+        }),
       });
 
       const result = await response.json();
@@ -230,8 +258,32 @@ export default function BookingPage() {
         ))}
       </select>
 
-      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      <input value={time} onChange={(e) => setTime(e.target.value)} placeholder="Time (ex: 2:00 PM)" />
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => {
+          const selectedDate = e.target.value;
+          setDate(selectedDate);
+          if (selectedDate) {
+            loadAvailability(selectedDate);
+          } else {
+            setAvailableSlots([]);
+            setTime('');
+          }
+        }}
+      />
+
+      <select value={time} onChange={(e) => setTime(e.target.value)} disabled={!date || loadingSlots}>
+        <option value="">
+          {loadingSlots ? 'Loading times...' : 'Select Available Time'}
+        </option>
+        {availableSlots.map((slot) => (
+          <option key={slot} value={slot}>
+            {slot}
+          </option>
+        ))}
+      </select>
+
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your Name" />
       <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your Email" />
 
@@ -247,9 +299,6 @@ export default function BookingPage() {
             setFiles(selected);
           }}
         />
-        <p className="muted" style={{ marginTop: 8 }}>
-          You can upload multiple inspiration photos before checkout.
-        </p>
       </div>
 
       <p style={{ marginTop: 12 }}>
@@ -261,5 +310,4 @@ export default function BookingPage() {
       </button>
     </main>
   );
-}
 }
