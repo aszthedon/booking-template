@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import AdminBookingsTable from '@/components/AdminBookingsTable';
 
+type BookingPhoto = {
+  id: string;
+  public_url: string;
+};
+
 type BookingRow = {
   id: string;
   client_name: string | null;
@@ -19,6 +24,7 @@ type BookingRow = {
     name: string | null;
     price: number | null;
   } | null;
+  booking_photos: BookingPhoto[];
 };
 
 export default async function AdminBookingsPage() {
@@ -43,6 +49,10 @@ export default async function AdminBookingsPage() {
       service_variations (
         name,
         price
+      ),
+      booking_photos (
+        id,
+        public_url
       )
     `)
     .order('created_at', { ascending: false });
