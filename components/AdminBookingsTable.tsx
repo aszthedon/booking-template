@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 type BookingRow = {
   id: string;
@@ -29,6 +29,31 @@ export default function AdminBookingsTable({
 }) {
   const [rows, setRows] = useState(bookings);
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  const [search, setSearch] = useState('');
+  const [bookingFilter, setBookingFilter] = useState('all');
+  const [paymentFilter, setPaymentFilter] = useState('all');
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      const query = search.trim().toLowerCase();
+
+      const matchesSearch =
+        query === '' ||
+        row.client_name?.toLowerCase().includes(query) ||
+        row.client_email?.toLowerCase().includes(query) ||
+        row.services?.name?.toLowerCase().includes(query) ||
+        row.service_variations?.name?.toLowerCase().includes(query);
+
+      const matchesBooking =
+        bookingFilter === 'all' || row.status === bookingFilter;
+
+      const matchesPayment =
+        paymentFilter === 'all' || row.payment_status === paymentFilter;
+
+      return matchesSearch && matchesBooking && matchesPayment;
+    });
+  }, [rows, search, bookingFilter, paymentFilter]);
 
   async function handleSave(id: string) {
     const row = rows.find((b) => b.id === id);
@@ -70,83 +95,135 @@ export default function AdminBookingsTable({
   }
 
   return (
-    <div className="card card-body" style={{ marginTop: 24 }}>
-      {rows.length === 0 ? (
-        <p>No bookings yet.</p>
-      ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={th}>Client</th>
-                <th style={th}>Email</th>
-                <th style={th}>Service</th>
-                <th style={th}>Variation</th>
-                <th style={th}>Date</th>
-                <th style={th}>Time</th>
-                <th style={th}>Booking Status</th>
-                <th style={th}>Payment Status</th>
-                <th style={th}>Due</th>
-                <th style={th}>Paid</th>
-                <th style={th}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((b) => (
-                <tr key={b.id}>
-                  <td style={td}>{b.client_name || '—'}</td>
-                  <td style={td}>{b.client_email || '—'}</td>
-                  <td style={td}>{b.services?.name || '—'}</td>
-                  <td style={td}>{b.service_variations?.name || '—'}</td>
-                  <td style={td}>{b.appointment_date || '—'}</td>
-                  <td style={td}>{b.appointment_time || '—'}</td>
+    <>
+      <div className="card card-body" style={{ marginTop: 24 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '2fr 1fr 1fr',
+            gap: 16,
+          }}
+        >
+          <div>
+            <label htmlFor="search">Search</label>
+            <input
+              id="search"
+              type="text"
+              placeholder="Search client, email, service, or variation"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
 
-                  <td style={td}>
-                    <select
-                      value={b.status || 'pending'}
-                      onChange={(e) =>
-                        updateRow(b.id, 'status', e.target.value)
-                      }
-                    >
-                      <option value="pending">pending</option>
-                      <option value="confirmed">confirmed</option>
-                      <option value="completed">completed</option>
-                      <option value="cancelled">cancelled</option>
-                    </select>
-                  </td>
+          <div>
+            <label htmlFor="bookingFilter">Booking Status</label>
+            <select
+              id="bookingFilter"
+              value={bookingFilter}
+              onChange={(e) => setBookingFilter(e.target.value)}
+            >
+              <option value="all">All</option>
+              <option value="pending">pending</option>
+              <option value="confirmed">confirmed</option>
+              <option value="completed">completed</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
 
-                  <td style={td}>
-                    <select
-                      value={b.payment_status || 'unpaid'}
-                      onChange={(e) =>
-                        updateRow(b.id, 'payment_status', e.target.value)
-                      }
-                    >
-                      <option value="unpaid">unpaid</option>
-                      <option value="paid">paid</option>
-                      <option value="refunded">refunded</option>
-                    </select>
-                  </td>
-
-                  <td style={td}>${b.amount_due ?? 0}</td>
-                  <td style={td}>${b.amount_paid ?? 0}</td>
-
-                  <td style={td}>
-                    <button
-                      className="button"
-                      onClick={() => handleSave(b.id)}
-                      disabled={savingId === b.id}
-                    >
-                      {savingId === b.id ? 'Saving...' : 'Save'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div>
+            <label htmlFor="paymentFilter">Payment Status</label>
+            <select
+              id="paymentFilter"
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+            >
+              <option value="all">All</option>
+              <option value="unpaid">unpaid</option>
+              <option value="paid">paid</option>
+              <option value="refunded">refunded</option>
+            </select>
+          </div>
         </div>
-      )}
-    </div>
+      </div>
+
+      <div className="card card-body" style={{ marginTop: 24 }}>
+        {filteredRows.length === 0 ? (
+          <p>No bookings match your filters.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={th}>Client</th>
+                  <th style={th}>Email</th>
+                  <th style={th}>Service</th>
+                  <th style={th}>Variation</th>
+                  <th style={th}>Date</th>
+                  <th style={th}>Time</th>
+                  <th style={th}>Booking Status</th>
+                  <th style={th}>Payment Status</th>
+                  <th style={th}>Due</th>
+                  <th style={th}>Paid</th>
+                  <th style={th}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.map((b) => (
+                  <tr key={b.id}>
+                    <td style={td}>{b.client_name || '—'}</td>
+                    <td style={td}>{b.client_email || '—'}</td>
+                    <td style={td}>{b.services?.name || '—'}</td>
+                    <td style={td}>{b.service_variations?.name || '—'}</td>
+                    <td style={td}>{b.appointment_date || '—'}</td>
+                    <td style={td}>{b.appointment_time || '—'}</td>
+
+                    <td style={td}>
+                      <select
+                        value={b.status || 'pending'}
+                        onChange={(e) =>
+                          updateRow(b.id, 'status', e.target.value)
+                        }
+                      >
+                        <option value="pending">pending</option>
+                        <option value="confirmed">confirmed</option>
+                        <option value="completed">completed</option>
+                        <option value="cancelled">cancelled</option>
+                      </select>
+                    </td>
+
+                    <td style={td}>
+                      <select
+                        value={b.payment_status || 'unpaid'}
+                        onChange={(e) =>
+                          updateRow(b.id, 'payment_status', e.target.value)
+                        }
+                      >
+                        <option value="unpaid">unpaid</option>
+                        <option value="paid">paid</option>
+                        <option value="refunded">refunded</option>
+                      </select>
+                    </td>
+
+                    <td style={td}>${b.amount_due ?? 0}</td>
+                    <td style={td}>${b.amount_paid ?? 0}</td>
+
+                    <td style={td}>
+                      <button
+                        className="button"
+                        onClick={() => handleSave(b.id)}
+                        disabled={savingId === b.id}
+                      >
+                        {savingId === b.id ? 'Saving...' : 'Save'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
