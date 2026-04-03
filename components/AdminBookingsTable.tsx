@@ -2,6 +2,11 @@
 
 import { useMemo, useState } from 'react';
 
+type BookingPhoto = {
+  id: string;
+  public_url: string;
+};
+
 type BookingRow = {
   id: string;
   client_name: string | null;
@@ -20,6 +25,7 @@ type BookingRow = {
     name: string | null;
     price: number | null;
   } | null;
+  booking_photos?: BookingPhoto[];
 };
 
 export default function AdminBookingsTable({
@@ -160,6 +166,7 @@ export default function AdminBookingsTable({
                   <th style={th}>Variation</th>
                   <th style={th}>Date</th>
                   <th style={th}>Time</th>
+                  <th style={th}>Photos</th>
                   <th style={th}>Booking Status</th>
                   <th style={th}>Payment Status</th>
                   <th style={th}>Due</th>
@@ -176,6 +183,29 @@ export default function AdminBookingsTable({
                     <td style={td}>{b.service_variations?.name || '—'}</td>
                     <td style={td}>{b.appointment_date || '—'}</td>
                     <td style={td}>{b.appointment_time || '—'}</td>
+
+                    <td style={td}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {b.booking_photos && b.booking_photos.length > 0 ? (
+                          b.booking_photos.map((photo) => (
+                            <img
+                              key={photo.id}
+                              src={photo.public_url}
+                              alt="Inspiration"
+                              style={{
+                                width: 56,
+                                height: 56,
+                                objectFit: 'cover',
+                                borderRadius: 8,
+                                border: '1px solid #ddd',
+                              }}
+                            />
+                          ))
+                        ) : (
+                          <span>—</span>
+                        )}
+                      </div>
+                    </td>
 
                     <td style={td}>
                       <select
