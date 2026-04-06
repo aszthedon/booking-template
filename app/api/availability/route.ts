@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const BUSINESS_HOURS = {
-  start: 9,  // 9:00 AM
-  end: 17,   // 5:00 PM
+  start: 9,
+  end: 17,
   intervalMinutes: 30,
 };
 
@@ -32,6 +32,7 @@ function buildSlots() {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get('date');
+  const providerId = searchParams.get('providerId');
 
   if (!date) {
     return NextResponse.json({ error: 'Missing date.' }, { status: 400 });
@@ -39,11 +40,17 @@ export async function GET(req: Request) {
 
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('bookings')
     .select('appointment_time, status')
     .eq('appointment_date', date)
     .in('status', ['pending', 'confirmed']);
+
+  if (providerId) {
+    query = query.eq('staff_id', providerId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -51,7 +58,6 @@ export async function GET(req: Request) {
 
   const takenTimes = new Set((data || []).map((b) => b.appointment_time));
   const allSlots = buildSlots();
-
   const availableSlots = allSlots.filter((slot) => !takenTimes.has(slot));
 
   return NextResponse.json({
