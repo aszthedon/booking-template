@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import AdminCalendarManager from '@/components/AdminCalendarManager';
 
 type CalendarBooking = {
   id: string;
@@ -12,10 +13,15 @@ type CalendarBooking = {
   staff: { name: string | null } | null;
 };
 
+type StaffOption = {
+  id: string;
+  name: string;
+};
+
 export default async function AdminCalendarPage() {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const { data: bookingsData, error } = await supabase
     .from('bookings')
     .select(`
       id,
@@ -28,83 +34,31 @@ export default async function AdminCalendarPage() {
       service_variations ( name ),
       staff ( name )
     `)
-    .in('status', ['pending', 'confirmed', 'completed'])
     .order('appointment_date', { ascending: true })
     .order('appointment_time', { ascending: true });
+
+  const { data: staffData } = await supabase
+    .from('staff')
+    .select('id, name')
+    .eq('is_active', true);
 
   if (error) {
     return (
       <main className="section shell">
         <h1>Admin Calendar</h1>
-        <p>Failed to load calendar.</p>
         <pre>{error.message}</pre>
       </main>
     );
   }
 
-  const bookings = (data ?? []) as CalendarBooking[];
-
-  const grouped = bookings.reduce<Record<string, CalendarBooking[]>>((acc, booking) => {
-    const key = booking.appointment_date || 'No Date';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(booking);
-    return acc;
-  }, {});
-
-  const orderedDates = Object.keys(grouped).sort();
+  const bookings = (bookingsData ?? []) as CalendarBooking[];
+  const staffOptions = (staffData ?? []) as StaffOption[];
 
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
       <h1>Calendar View</h1>
-
-      {orderedDates.length === 0 ? (
-        <p>No scheduled bookings yet.</p>
-      ) : (
-        orderedDates.map((date) => (
-          <section key={date} style={{ marginTop: 32 }}>
-            <h2>{date}</h2>
-            <div className="card card-body" style={{ marginTop: 12 }}>
-              <div style={{ display: 'grid', gap: 12 }}>
-                {grouped[date].map((booking) => (
-                  <div
-                    key={booking.id}
-                    style={{
-                      border: '1px solid #e5e5e5',
-                      borderRadius: 12,
-                      padding: 16,
-                      display: 'grid',
-                      gap: 6,
-                    }}
-                  >
-                    <strong>
-                      {booking.appointment_time || '—'} — {booking.client_name || 'Client'}
-                    </strong>
-                    <span>
-                      {Array.isArray(booking.services)
-                        ? booking.services[0]?.name
-                        : booking.services?.name}{' '}
-                      /{' '}
-                      {Array.isArray(booking.service_variations)
-                        ? booking.service_variations[0]?.name
-                        : booking.service_variations?.name}
-                    </span>
-                    <span>
-                      Provider:{' '}
-                      {Array.isArray(booking.staff)
-                        ? booking.staff[0]?.name || 'Unassigned'
-                        : booking.staff?.name || 'Unassigned'}
-                    </span>
-                    <span>
-                      Booking: {booking.status} · Payment: {booking.payment_status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        ))
-      )}
+      <AdminCalendarManager bookings={bookings} staffOptions={staffOptions} />
     </main>
   );
 }
