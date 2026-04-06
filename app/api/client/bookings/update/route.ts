@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  sendClientCancelledEmail,
+  sendClientRescheduledEmail,
+} from '@/lib/email';
 
 export async function POST(req: Request) {
   try {
@@ -27,7 +31,17 @@ export async function POST(req: Request) {
 
     const { data: booking, error: bookingError } = await admin
       .from('bookings')
-      .select('id, client_email, status, payment_status')
+      .select(`
+        id,
+        client_name,
+        client_email,
+        appointment_date,
+        appointment_time,
+        status,
+        payment_status,
+        services ( name ),
+        service_variations ( name )
+      `)
       .eq('id', bookingId)
       .single();
 
@@ -39,16 +53,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
     }
 
+    const serviceName = Array.isArray(booking.services)
+      ? booking.services[0]?.name || 'Service'
+      : booking.services?.name || 'Service';
+
+    const variationName = Array.isArray(booking.service_variations)
+      ? booking.service_variations[0]?.name || 'Variation'
+      : booking.service_variations?.name || 'Variation';
+
     if (action === 'cancel') {
       const { error } = await admin
         .from('bookings')
-        .update({
-          status: 'cancelled',
-        })
+        .update({ status: 'cancelled' })
         .eq('id', bookingId);
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      if (booking.client_email) {
+        await sendClientCancelledEmail({
+          to: booking.client_email,
+          clientName: booking.client_name || 'Client',
+          serviceName,
+          variationName,
+          appointmentDate: booking.appointment_date || 'TBD',
+          appointmentTime: booking.appointment_time || 'TBD',
+        });
       }
 
       return NextResponse.json({ success: true });
@@ -92,6 +123,17 @@ export async function POST(req: Request) {
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      if (booking.client_email) {
+        await sendClientRescheduledEmail({
+          to: booking.client_email,
+          clientName: booking.client_name || 'Client',
+          serviceName,
+          variationName,
+          appointmentDate: newDate,
+          appointmentTime: newTime,
+        });
       }
 
       return NextResponse.json({ success: true });
