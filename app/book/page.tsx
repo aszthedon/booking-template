@@ -17,6 +17,11 @@ type Variation = {
   deposit_value: number;
 };
 
+type Staff = {
+  id: string;
+  name: string;
+};
+
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -26,6 +31,7 @@ export default function BookingPage() {
 
   const [services, setServices] = useState<Service[]>([]);
   const [variations, setVariations] = useState<Variation[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
   const [selectedService, setSelectedService] = useState('');
@@ -33,6 +39,7 @@ export default function BookingPage() {
   const [selectedVariation, setSelectedVariation] = useState('');
   const [selectedVariationName, setSelectedVariationName] = useState('');
   const [selectedDepositAmount, setSelectedDepositAmount] = useState(0);
+  const [selectedProvider, setSelectedProvider] = useState('');
 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -45,46 +52,47 @@ export default function BookingPage() {
 
   useEffect(() => {
     loadServices();
+    loadStaff();
   }, []);
 
   async function loadServices() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('services')
       .select('id, name')
       .eq('is_active', true);
-
-    if (error) {
-      console.error('Failed to load services:', error);
-      return;
-    }
 
     setServices(data || []);
   }
 
   async function loadVariations(serviceId: string) {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('service_variations')
       .select('id, service_id, name, price, deposit_type, deposit_value')
       .eq('service_id', serviceId)
       .eq('is_active', true);
 
-    if (error) {
-      console.error('Failed to load variations:', error);
-      return;
-    }
-
     setVariations(data || []);
   }
 
-  async function loadAvailability(selectedDate: string) {
+  async function loadStaff() {
+    const { data } = await supabase
+      .from('staff')
+      .select('id, name')
+      .eq('is_active', true);
+
+    setStaff(data || []);
+  }
+
+  async function loadAvailability(selectedDate: string, providerId: string) {
     setLoadingSlots(true);
     setTime('');
 
-    const response = await fetch(`/api/availability?date=${selectedDate}`);
+    const response = await fetch(
+      `/api/availability?date=${selectedDate}&providerId=${providerId}`
+    );
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('Availability error:', result);
       setAvailableSlots([]);
       setLoadingSlots(false);
       return;
@@ -101,7 +109,7 @@ export default function BookingPage() {
       const cleanName = file.name.replace(/\s+/g, '-').toLowerCase();
       const filePath = `${bookingId}/${Date.now()}-${cleanName}`;
 
-      const { error: uploadError } = await supabase.storage
+      await supabase.storage
         .from('inspiration-photos')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -109,36 +117,23 @@ export default function BookingPage() {
           contentType: file.type,
         });
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        continue;
-      }
-
       const { data: publicUrlData } = supabase.storage
         .from('inspiration-photos')
         .getPublicUrl(filePath);
 
-      const publicUrl = publicUrlData.publicUrl;
-
-      const { error: photoInsertError } = await supabase
-        .from('booking_photos')
-        .insert({
-          booking_id: bookingId,
-          client_email: clientEmail,
-          file_path: filePath,
-          public_url: publicUrl,
-        });
-
-      if (photoInsertError) {
-        console.error('Photo record insert error:', photoInsertError);
-      }
+      await supabase.from('booking_photos').insert({
+        booking_id: bookingId,
+        client_email: clientEmail,
+        file_path: filePath,
+        public_url: publicUrlData.publicUrl,
+      });
     }
   }
 
   async function handleBookingAndPayment() {
     if (isSubmitting) return;
 
-    if (!selectedService || !selectedVariation || !date || !time || !name || !email) {
+    if (!selectedService || !selectedVariation || !selectedProvider || !date || !time || !name || !email) {
       alert('Please complete all booking fields.');
       return;
     }
@@ -150,67 +145,52 @@ export default function BookingPage() {
 
     setIsSubmitting(true);
 
-    try {
-      const { data: booking, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          service_id: selectedService,
-          variation_id: selectedVariation,
-          client_name: name,
-          client_email: email,
-          appointment_date: date,
-          appointment_time: time,
-          status: 'pending',
-          payment_status: 'unpaid',
-          amount_due: selectedDepositAmount,
-        })
-        .select()
-        .single();
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .insert({
+        service_id: selectedService,
+        variation_id: selectedVariation,
+        staff_id: selectedProvider,
+        client_name: name,
+        client_email: email,
+        appointment_date: date,
+        appointment_time: time,
+        status: 'pending',
+        payment_status: 'unpaid',
+        amount_due: selectedDepositAmount,
+      })
+      .select()
+      .single();
 
-      if (bookingError || !booking) {
-        console.error('Booking insert error:', bookingError);
-
-        if (bookingError?.message?.toLowerCase().includes('duplicate') ||
-            bookingError?.message?.toLowerCase().includes('unique')) {
-          alert('That time slot was just taken. Please choose another time.');
-        } else {
-          alert(bookingError?.message || 'Failed to create booking.');
-        }
-
-        setIsSubmitting(false);
-        await loadAvailability(date);
-        return;
-      }
-
-      await uploadPhotos(booking.id, email);
-
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId: booking.id,
-          serviceName: selectedServiceName,
-          variationName: selectedVariationName,
-          customerEmail: email,
-          depositAmount: selectedDepositAmount,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.url) {
-        console.error('Checkout session error:', result);
-        alert(result.error || 'Failed to start payment.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      window.location.href = result.url;
-    } catch (error) {
-      console.error('Unexpected booking/payment error:', error);
-      alert('Something went wrong.');
+    if (bookingError || !booking) {
+      alert(bookingError?.message || 'Failed to create booking.');
       setIsSubmitting(false);
+      return;
     }
+
+    await uploadPhotos(booking.id, email);
+
+    const response = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bookingId: booking.id,
+        serviceName: selectedServiceName,
+        variationName: selectedVariationName,
+        customerEmail: email,
+        depositAmount: selectedDepositAmount,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.url) {
+      alert(result.error || 'Failed to start payment.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    window.location.href = result.url;
   }
 
   return (
@@ -233,9 +213,7 @@ export default function BookingPage() {
       >
         <option value="">Select Service</option>
         {services.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
+          <option key={s.id} value={s.id}>{s.name}</option>
         ))}
       </select>
 
@@ -252,9 +230,24 @@ export default function BookingPage() {
       >
         <option value="">Select Variation</option>
         {variations.map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.name} — ${v.price}
-          </option>
+          <option key={v.id} value={v.id}>{v.name} — ${v.price}</option>
+        ))}
+      </select>
+
+      <select
+        value={selectedProvider}
+        onChange={(e) => {
+          const providerId = e.target.value;
+          setSelectedProvider(providerId);
+
+          if (date && providerId) {
+            loadAvailability(date, providerId);
+          }
+        }}
+      >
+        <option value="">Select Provider</option>
+        {staff.map((member) => (
+          <option key={member.id} value={member.id}>{member.name}</option>
         ))}
       </select>
 
@@ -264,42 +257,34 @@ export default function BookingPage() {
         onChange={(e) => {
           const selectedDate = e.target.value;
           setDate(selectedDate);
-          if (selectedDate) {
-            loadAvailability(selectedDate);
-          } else {
-            setAvailableSlots([]);
-            setTime('');
+          if (selectedDate && selectedProvider) {
+            loadAvailability(selectedDate, selectedProvider);
           }
         }}
       />
 
-      <select value={time} onChange={(e) => setTime(e.target.value)} disabled={!date || loadingSlots}>
+      <select
+        value={time}
+        onChange={(e) => setTime(e.target.value)}
+        disabled={!date || !selectedProvider || loadingSlots}
+      >
         <option value="">
           {loadingSlots ? 'Loading times...' : 'Select Available Time'}
         </option>
         {availableSlots.map((slot) => (
-          <option key={slot} value={slot}>
-            {slot}
-          </option>
+          <option key={slot} value={slot}>{slot}</option>
         ))}
       </select>
 
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your Name" />
       <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your Email" />
 
-      <div style={{ marginTop: 16 }}>
-        <label htmlFor="photos">Upload Inspiration Photos</label>
-        <input
-          id="photos"
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={(e) => {
-            const selected = Array.from(e.target.files || []);
-            setFiles(selected);
-          }}
-        />
-      </div>
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(e) => setFiles(Array.from(e.target.files || []))}
+      />
 
       <p style={{ marginTop: 12 }}>
         Deposit due today: <strong>${selectedDepositAmount || 0}</strong>
