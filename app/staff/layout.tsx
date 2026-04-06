@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import DashboardSidebar from '@/components/DashboardSidebar';
+import { staffNav } from '@/lib/dashboard-nav';
 
 export default async function StaffLayout({
   children,
@@ -26,5 +28,10 @@ export default async function StaffLayout({
     redirect('/');
   }
 
-  return <>{children}</>;
+  return (
+    <div style={{ display: 'flex' }}>
+      <DashboardSidebar title="Staff Dashboard" links={staffNav} />
+      <div style={{ flex: 1 }}>{children}</div>
+    </div>
+  );
 }
