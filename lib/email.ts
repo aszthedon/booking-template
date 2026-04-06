@@ -21,6 +21,15 @@ type AdminNotificationArgs = {
   amountPaid: number;
 };
 
+type BookingChangeEmailArgs = {
+  to: string;
+  clientName: string;
+  serviceName: string;
+  variationName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+};
+
 export async function sendClientConfirmationEmail({
   to,
   clientName,
@@ -39,8 +48,6 @@ export async function sendClientConfirmationEmail({
         <h1>Your booking is confirmed</h1>
         <p>Hi ${clientName || 'there'},</p>
         <p>Your deposit has been received and your appointment is now confirmed.</p>
-
-        <h3>Appointment Details</h3>
         <ul>
           <li><strong>Service:</strong> ${serviceName}</li>
           <li><strong>Variation:</strong> ${variationName}</li>
@@ -48,8 +55,6 @@ export async function sendClientConfirmationEmail({
           <li><strong>Time:</strong> ${appointmentTime}</li>
           <li><strong>Deposit Paid:</strong> $${amountPaid.toFixed(2)}</li>
         </ul>
-
-        <p>Please keep an eye on your dashboard for updates and arrive on time for your appointment.</p>
       </div>
     `,
   });
@@ -66,7 +71,6 @@ export async function sendAdminBookingNotification({
   amountPaid,
 }: AdminNotificationArgs) {
   const to = process.env.ADMIN_NOTIFICATION_EMAIL;
-
   if (!to) return;
 
   return resend.emails.send({
@@ -88,5 +92,63 @@ export async function sendAdminBookingNotification({
         </ul>
       </div>
     `,
+  });
+}
+
+export async function sendClientCancelledEmail({
+  to,
+  clientName,
+  serviceName,
+  variationName,
+  appointmentDate,
+  appointmentTime,
+}: BookingChangeEmailArgs) {
+  return resend.emails.send({
+    from: process.env.EMAIL_FROM!,
+    to,
+    subject: 'Your booking was cancelled',
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h1>Your booking was cancelled</h1>
+        <p>Hi ${clientName || 'there'},</p>
+        <p>Your appointment has been cancelled.</p>
+        <ul>
+          <li><strong>Service:</strong> ${serviceName}</li>
+          <li><strong>Variation:</strong> ${variationName}</li>
+          <li><strong>Date:</strong> ${appointmentDate}</li>
+          <li><strong>Time:</strong> ${appointmentTime}</li>
+        </ul>
+      </div>
+    `,
+  });
+}
+
+export async function sendClientRescheduledEmail({
+  to,
+  clientName,
+  serviceName,
+  variationName,
+  appointmentDate,
+  appointmentTime,
+}: BookingChangeEmailArgs) {
+  return resend.emails.send({
+    from: process.env.EMAIL_FROM!,
+    to,
+    subject: 'Your booking was rescheduled',
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h1>Your booking was rescheduled</h1>
+        <p>Hi ${clientName || 'there'},</p>
+        <p>Your appointment time has been updated.</p>
+        <ul>
+          <li><strong>Service:</strong> ${serviceName}</li>
+          <li><strong>Variation:</strong> ${variationName}</li>
+          <li><strong>New Date:</strong> ${appointmentDate}</li>
+          <li><strong>New Time:</strong> ${appointmentTime}</li>
+        </ul>
+      </div>
+    `,
+  });
+}
   });
 }
