@@ -1,15 +1,17 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import DashboardSidebar from '@/components/DashboardSidebar';
+import { adminNav } from '@/lib/dashboard-nav';
 
 export default async function AdminLayout({
-  children
+  children,
 }: {
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
 
   const {
-    data: { user }
+    data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) redirect('/login');
@@ -24,5 +26,10 @@ export default async function AdminLayout({
     redirect('/');
   }
 
-  return <>{children}</>;
+  return (
+    <div style={{ display: 'flex' }}>
+      <DashboardSidebar title="Admin Dashboard" links={adminNav} />
+      <div style={{ flex: 1 }}>{children}</div>
+    </div>
+  );
 }
