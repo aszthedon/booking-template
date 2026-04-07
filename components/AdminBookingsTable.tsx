@@ -25,6 +25,9 @@ type BookingRow = {
     name: string | null;
     price: number | null;
   } | null;
+  staff: {
+    name: string | null;
+  } | null;
   booking_photos?: BookingPhoto[];
 };
 
@@ -35,6 +38,7 @@ export default function AdminBookingsTable({
 }) {
   const [rows, setRows] = useState(bookings);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [bookingFilter, setBookingFilter] = useState('all');
@@ -111,9 +115,8 @@ export default function AdminBookingsTable({
           }}
         >
           <div>
-            <label htmlFor="search">Search</label>
+            <label>Search</label>
             <input
-              id="search"
               type="text"
               placeholder="Search client, email, service, or variation"
               value={search}
@@ -122,9 +125,8 @@ export default function AdminBookingsTable({
           </div>
 
           <div>
-            <label htmlFor="bookingFilter">Booking Status</label>
+            <label>Booking Status</label>
             <select
-              id="bookingFilter"
               value={bookingFilter}
               onChange={(e) => setBookingFilter(e.target.value)}
             >
@@ -137,9 +139,8 @@ export default function AdminBookingsTable({
           </div>
 
           <div>
-            <label htmlFor="paymentFilter">Payment Status</label>
+            <label>Payment Status</label>
             <select
-              id="paymentFilter"
               value={paymentFilter}
               onChange={(e) => setPaymentFilter(e.target.value)}
             >
@@ -161,92 +162,126 @@ export default function AdminBookingsTable({
               <thead>
                 <tr>
                   <th style={th}>Client</th>
-                  <th style={th}>Email</th>
                   <th style={th}>Service</th>
-                  <th style={th}>Variation</th>
                   <th style={th}>Date</th>
                   <th style={th}>Time</th>
-                  <th style={th}>Photos</th>
                   <th style={th}>Booking Status</th>
                   <th style={th}>Payment Status</th>
-                  <th style={th}>Due</th>
-                  <th style={th}>Paid</th>
                   <th style={th}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.map((b) => (
-                  <tr key={b.id}>
-                    <td style={td}>{b.client_name || '—'}</td>
-                    <td style={td}>{b.client_email || '—'}</td>
-                    <td style={td}>{b.services?.name || '—'}</td>
-                    <td style={td}>{b.service_variations?.name || '—'}</td>
-                    <td style={td}>{b.appointment_date || '—'}</td>
-                    <td style={td}>{b.appointment_time || '—'}</td>
+                  <>
+                    <tr key={b.id}>
+                      <td style={td}>{b.client_name || '—'}</td>
+                      <td style={td}>
+                        {b.services?.name || '—'} / {b.service_variations?.name || '—'}
+                      </td>
+                      <td style={td}>{b.appointment_date || '—'}</td>
+                      <td style={td}>{b.appointment_time || '—'}</td>
 
-                    <td style={td}>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {b.booking_photos && b.booking_photos.length > 0 ? (
-                          b.booking_photos.map((photo) => (
-                            <img
-                              key={photo.id}
-                              src={photo.public_url}
-                              alt="Inspiration"
-                              style={{
-                                width: 56,
-                                height: 56,
-                                objectFit: 'cover',
-                                borderRadius: 8,
-                                border: '1px solid #ddd',
-                              }}
-                            />
-                          ))
-                        ) : (
-                          <span>—</span>
-                        )}
-                      </div>
-                    </td>
+                      <td style={td}>
+                        <select
+                          value={b.status || 'pending'}
+                          onChange={(e) =>
+                            updateRow(b.id, 'status', e.target.value)
+                          }
+                        >
+                          <option value="pending">pending</option>
+                          <option value="confirmed">confirmed</option>
+                          <option value="completed">completed</option>
+                          <option value="cancelled">cancelled</option>
+                        </select>
+                      </td>
 
-                    <td style={td}>
-                      <select
-                        value={b.status || 'pending'}
-                        onChange={(e) =>
-                          updateRow(b.id, 'status', e.target.value)
-                        }
-                      >
-                        <option value="pending">pending</option>
-                        <option value="confirmed">confirmed</option>
-                        <option value="completed">completed</option>
-                        <option value="cancelled">cancelled</option>
-                      </select>
-                    </td>
+                      <td style={td}>
+                        <select
+                          value={b.payment_status || 'unpaid'}
+                          onChange={(e) =>
+                            updateRow(b.id, 'payment_status', e.target.value)
+                          }
+                        >
+                          <option value="unpaid">unpaid</option>
+                          <option value="paid">paid</option>
+                          <option value="refunded">refunded</option>
+                        </select>
+                      </td>
 
-                    <td style={td}>
-                      <select
-                        value={b.payment_status || 'unpaid'}
-                        onChange={(e) =>
-                          updateRow(b.id, 'payment_status', e.target.value)
-                        }
-                      >
-                        <option value="unpaid">unpaid</option>
-                        <option value="paid">paid</option>
-                        <option value="refunded">refunded</option>
-                      </select>
-                    </td>
+                      <td style={td}>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            className="button"
+                            onClick={() => handleSave(b.id)}
+                            disabled={savingId === b.id}
+                          >
+                            {savingId === b.id ? 'Saving...' : 'Save'}
+                          </button>
 
-                    <td style={td}>${b.amount_due ?? 0}</td>
-                    <td style={td}>${b.amount_paid ?? 0}</td>
+                          <button
+                            className="button secondary"
+                            onClick={() =>
+                              setOpenId(openId === b.id ? null : b.id)
+                            }
+                          >
+                            {openId === b.id ? 'Close' : 'Details'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
 
-                    <td style={td}>
-                      <button
-                        className="button"
-                        onClick={() => handleSave(b.id)}
-                        disabled={savingId === b.id}
-                      >
-                        {savingId === b.id ? 'Saving...' : 'Save'}
-                      </button>
-                    </td>
-                  </tr>
+                    {openId === b.id && (
+                      <tr>
+                        <td colSpan={7} style={{ padding: 16, background: '#fafafa' }}>
+                          <div style={{ display: 'grid', gap: 12 }}>
+                            <div>
+                              <strong>Client Email:</strong> {b.client_email || '—'}
+                            </div>
+                            <div>
+                              <strong>Provider:</strong> {b.staff?.name || 'Unassigned'}
+                            </div>
+                            <div>
+                              <strong>Amount Due:</strong> ${b.amount_due ?? 0}
+                            </div>
+                            <div>
+                              <strong>Amount Paid:</strong> ${b.amount_paid ?? 0}
+                            </div>
+
+                            <div>
+                              <strong>Uploaded Inspiration Photos:</strong>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  gap: 12,
+                                  flexWrap: 'wrap',
+                                  marginTop: 12,
+                                }}
+                              >
+                                {b.booking_photos && b.booking_photos.length > 0 ? (
+                                  b.booking_photos.map((photo) => (
+                                    <img
+                                      key={photo.id}
+                                      src={photo.public_url}
+                                      alt="Inspiration"
+                                      style={{
+                                        width: 120,
+                                        height: 120,
+                                        objectFit: 'cover',
+                                        borderRadius: 12,
+                                        border: '1px solid #ddd',
+                                      }}
+                                    />
+                                  ))
+                                ) : (
+                                  <span>No photos uploaded.</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
               </tbody>
             </table>
