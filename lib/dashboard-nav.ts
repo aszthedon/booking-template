@@ -2,6 +2,7 @@ export const adminNav = [
   { href: '/admin', label: 'Overview' },
   { href: '/admin/bookings', label: 'Bookings' },
   { href: '/admin/calendar', label: 'Calendar' },
+  { href: '/admin/providers', label: 'Providers' },
   { href: '/admin/services', label: 'Services' },
 ];
 
