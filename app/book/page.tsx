@@ -13,6 +13,7 @@ type Variation = {
   service_id: string;
   name: string;
   price: number;
+  duration_minutes: number;
   deposit_type: 'flat' | 'percent';
   deposit_value: number;
 };
@@ -38,6 +39,7 @@ export default function BookingPage() {
   const [selectedServiceName, setSelectedServiceName] = useState('');
   const [selectedVariation, setSelectedVariation] = useState('');
   const [selectedVariationName, setSelectedVariationName] = useState('');
+  const [selectedDuration, setSelectedDuration] = useState(0);
   const [selectedDepositAmount, setSelectedDepositAmount] = useState(0);
   const [selectedProvider, setSelectedProvider] = useState('');
 
@@ -67,7 +69,7 @@ export default function BookingPage() {
   async function loadVariations(serviceId: string) {
     const { data } = await supabase
       .from('service_variations')
-      .select('id, service_id, name, price, deposit_type, deposit_value')
+      .select('id, service_id, name, price, duration_minutes, deposit_type, deposit_value')
       .eq('service_id', serviceId)
       .eq('is_active', true);
 
@@ -83,16 +85,19 @@ export default function BookingPage() {
     setStaff(data || []);
   }
 
-  async function loadAvailability(selectedDate: string, providerId: string) {
+  async function loadAvailability(selectedDate: string, providerId: string, duration: number) {
+    if (!selectedDate || !providerId || !duration) return;
+
     setLoadingSlots(true);
     setTime('');
 
     const response = await fetch(
-      `/api/availability?date=${selectedDate}&providerId=${providerId}`
+      `/api/availability?date=${selectedDate}&providerId=${providerId}&durationMinutes=${duration}`
     );
     const result = await response.json();
 
     if (!response.ok) {
+      console.error('Availability error:', result);
       setAvailableSlots([]);
       setLoadingSlots(false);
       return;
@@ -109,13 +114,18 @@ export default function BookingPage() {
       const cleanName = file.name.replace(/\s+/g, '-').toLowerCase();
       const filePath = `${bookingId}/${Date.now()}-${cleanName}`;
 
-      await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('inspiration-photos')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
           contentType: file.type,
         });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        continue;
+      }
 
       const { data: publicUrlData } = supabase.storage
         .from('inspiration-photos')
@@ -145,9 +155,10 @@ export default function BookingPage() {
 
     setIsSubmitting(true);
 
-    const { data: booking, error: bookingError } = await supabase
-      .from('bookings')
-      .insert({
+    const bookingResponse = await fetch('/api/create-booking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         service_id: selectedService,
         variation_id: selectedVariation,
         staff_id: selectedProvider,
@@ -155,18 +166,20 @@ export default function BookingPage() {
         client_email: email,
         appointment_date: date,
         appointment_time: time,
-        status: 'pending',
-        payment_status: 'unpaid',
         amount_due: selectedDepositAmount,
-      })
-      .select()
-      .single();
+      }),
+    });
 
-    if (bookingError || !booking) {
-      alert(bookingError?.message || 'Failed to create booking.');
+    const bookingResult = await bookingResponse.json();
+
+    if (!bookingResponse.ok || !bookingResult.booking) {
+      alert(bookingResult.error || 'Failed to create booking.');
       setIsSubmitting(false);
+      await loadAvailability(date, selectedProvider, selectedDuration);
       return;
     }
+
+    const booking = bookingResult.booking;
 
     await uploadPhotos(booking.id, email);
 
@@ -207,7 +220,10 @@ export default function BookingPage() {
           setSelectedServiceName(service?.name || '');
           setSelectedVariation('');
           setSelectedVariationName('');
+          setSelectedDuration(0);
           setSelectedDepositAmount(0);
+          setTime('');
+          setAvailableSlots([]);
           loadVariations(serviceId);
         }}
       >
@@ -225,12 +241,21 @@ export default function BookingPage() {
 
           setSelectedVariation(variationId);
           setSelectedVariationName(variation?.name || '');
+          setSelectedDuration(Number(variation?.duration_minutes || 0));
           setSelectedDepositAmount(Number(variation?.deposit_value || 0));
+          setTime('');
+          setAvailableSlots([]);
+
+          if (date && selectedProvider && variation?.duration_minutes) {
+            loadAvailability(date, selectedProvider, variation.duration_minutes);
+          }
         }}
       >
         <option value="">Select Variation</option>
         {variations.map((v) => (
-          <option key={v.id} value={v.id}>{v.name} — ${v.price}</option>
+          <option key={v.id} value={v.id}>
+            {v.name} — ${v.price} — {v.duration_minutes} min
+          </option>
         ))}
       </select>
 
@@ -239,9 +264,11 @@ export default function BookingPage() {
         onChange={(e) => {
           const providerId = e.target.value;
           setSelectedProvider(providerId);
+          setTime('');
+          setAvailableSlots([]);
 
-          if (date && providerId) {
-            loadAvailability(date, providerId);
+          if (date && selectedDuration && providerId) {
+            loadAvailability(date, providerId, selectedDuration);
           }
         }}
       >
@@ -257,8 +284,11 @@ export default function BookingPage() {
         onChange={(e) => {
           const selectedDate = e.target.value;
           setDate(selectedDate);
-          if (selectedDate && selectedProvider) {
-            loadAvailability(selectedDate, selectedProvider);
+          setTime('');
+          setAvailableSlots([]);
+
+          if (selectedDate && selectedProvider && selectedDuration) {
+            loadAvailability(selectedDate, selectedProvider, selectedDuration);
           }
         }}
       />
@@ -266,7 +296,7 @@ export default function BookingPage() {
       <select
         value={time}
         onChange={(e) => setTime(e.target.value)}
-        disabled={!date || !selectedProvider || loadingSlots}
+        disabled={!date || !selectedProvider || !selectedDuration || loadingSlots}
       >
         <option value="">
           {loadingSlots ? 'Loading times...' : 'Select Available Time'}
@@ -287,6 +317,10 @@ export default function BookingPage() {
       />
 
       <p style={{ marginTop: 12 }}>
+        Duration: <strong>{selectedDuration || 0} min</strong>
+      </p>
+
+      <p style={{ marginTop: 6 }}>
         Deposit due today: <strong>${selectedDepositAmount || 0}</strong>
       </p>
 
