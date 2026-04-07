@@ -1,23 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { minutesToTime, parseTimeToMinutes, rangesOverlap } from '@/lib/time';
 
-function formatTime(hour: number, minute: number) {
-  const date = new Date();
-  date.setHours(hour, minute, 0, 0);
+function buildSlotMinutes(startHour: number, endHour: number, intervalMinutes: number) {
+  const slots: number[] = [];
+  const start = startHour * 60;
+  const end = endHour * 60;
 
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function buildSlots(startHour: number, endHour: number, intervalMinutes: number) {
-  const slots: string[] = [];
-
-  for (let hour = startHour; hour < endHour; hour++) {
-    for (let minute = 0; minute < 60; minute += intervalMinutes) {
-      slots.push(formatTime(hour, minute));
-    }
+  for (let current = start; current < end; current += intervalMinutes) {
+    slots.push(current);
   }
 
   return slots;
@@ -27,15 +18,18 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get('date');
   const providerId = searchParams.get('providerId');
+  const durationMinutesParam = searchParams.get('durationMinutes');
 
-  if (!date || !providerId) {
+  if (!date || !providerId || !durationMinutesParam) {
     return NextResponse.json(
-      { error: 'Missing date or providerId.' },
+      { error: 'Missing date, providerId, or durationMinutes.' },
       { status: 400 }
     );
   }
 
+  const durationMinutes = Number(durationMinutesParam);
   const supabase = createAdminClient();
+
   const jsDate = new Date(`${date}T12:00:00`);
   const weekday = jsDate.getDay();
 
@@ -50,7 +44,6 @@ export async function GET(req: Request) {
     return NextResponse.json({
       date,
       availableSlots: [],
-      takenSlots: [],
       blocked: true,
     });
   }
@@ -67,20 +60,28 @@ export async function GET(req: Request) {
     return NextResponse.json({
       date,
       availableSlots: [],
-      takenSlots: [],
       blocked: false,
     });
   }
 
-  const allSlots = buildSlots(
+  const slotMinutes = buildSlotMinutes(
     providerHours.start_hour,
     providerHours.end_hour,
     providerHours.interval_minutes
   );
 
+  const businessEndMinutes = providerHours.end_hour * 60;
+
   const { data: bookings, error: bookingsError } = await supabase
     .from('bookings')
-    .select('appointment_time')
+    .select(`
+      id,
+      appointment_time,
+      status,
+      service_variations (
+        duration_minutes
+      )
+    `)
     .eq('appointment_date', date)
     .eq('staff_id', providerId)
     .in('status', ['pending', 'confirmed']);
@@ -89,13 +90,34 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: bookingsError.message }, { status: 500 });
   }
 
-  const takenTimes = new Set((bookings || []).map((b) => b.appointment_time));
-  const availableSlots = allSlots.filter((slot) => !takenTimes.has(slot));
+  const existingRanges = (bookings || []).map((booking: any) => {
+    const start = parseTimeToMinutes(booking.appointment_time);
+    const duration =
+      Array.isArray(booking.service_variations)
+        ? booking.service_variations[0]?.duration_minutes || 30
+        : booking.service_variations?.duration_minutes || 30;
+
+    return {
+      start,
+      end: start + duration,
+    };
+  });
+
+  const availableSlots = slotMinutes
+    .filter((slotStart) => {
+      const slotEnd = slotStart + durationMinutes;
+
+      if (slotEnd > businessEndMinutes) return false;
+
+      return !existingRanges.some((existing) =>
+        rangesOverlap(slotStart, slotEnd, existing.start, existing.end)
+      );
+    })
+    .map((minutes) => minutesToTime(minutes));
 
   return NextResponse.json({
     date,
     availableSlots,
-    takenSlots: Array.from(takenTimes),
     blocked: false,
   });
 }
