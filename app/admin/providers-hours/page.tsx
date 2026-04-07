@@ -40,55 +40,126 @@ export default function ProviderHoursPage() {
   const [endHour, setEndHour] = useState('17');
   const [intervalMinutes, setIntervalMinutes] = useState('30');
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   useEffect(() => {
     loadProviders();
     loadHours();
   }, []);
 
   async function loadProviders() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('staff')
       .select('id, name')
-      .eq('is_active', true)
-      .order('name', { ascending: true });
+      .eq('is_active', true);
 
-    if (!error) setProviders(data || []);
+    setProviders(data || []);
   }
 
   async function loadHours() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('provider_hours')
-      .select('id, staff_id, weekday, start_hour, end_hour, interval_minutes, is_active')
+      .select('*')
       .eq('is_active', true)
       .order('weekday', { ascending: true });
 
-    if (!error) setHours(data || []);
+    setHours(data || []);
+  }
+
+  function resetForm() {
+    setSelectedProvider('');
+    setWeekday('1');
+    setStartHour('9');
+    setEndHour('17');
+    setIntervalMinutes('30');
+    setEditingId(null);
   }
 
   async function saveHours() {
     if (!selectedProvider) {
-      alert('Please select a provider.');
+      alert('Select a provider.');
       return;
     }
 
-    const { error } = await supabase.from('provider_hours').insert({
-      staff_id: selectedProvider,
-      weekday: Number(weekday),
-      start_hour: Number(startHour),
-      end_hour: Number(endHour),
-      interval_minutes: Number(intervalMinutes),
-      is_active: true,
-    });
+    if (Number(startHour) >= Number(endHour)) {
+      alert('End hour must be after start hour.');
+      return;
+    }
+
+    // Prevent duplicates (same provider + weekday)
+    const existing = hours.find(
+      (h) =>
+        h.staff_id === selectedProvider &&
+        h.weekday === Number(weekday) &&
+        h.id !== editingId
+    );
+
+    if (existing) {
+      alert('This provider already has hours set for this day.');
+      return;
+    }
+
+    if (editingId) {
+      // UPDATE
+      const { error } = await supabase
+        .from('provider_hours')
+        .update({
+          staff_id: selectedProvider,
+          weekday: Number(weekday),
+          start_hour: Number(startHour),
+          end_hour: Number(endHour),
+          interval_minutes: Number(intervalMinutes),
+        })
+        .eq('id', editingId);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+    } else {
+      // INSERT
+      const { error } = await supabase.from('provider_hours').insert({
+        staff_id: selectedProvider,
+        weekday: Number(weekday),
+        start_hour: Number(startHour),
+        end_hour: Number(endHour),
+        interval_minutes: Number(intervalMinutes),
+        is_active: true,
+      });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+    }
+
+    resetForm();
+    loadHours();
+  }
+
+  function editHour(hour: ProviderHour) {
+    setEditingId(hour.id);
+    setSelectedProvider(hour.staff_id);
+    setWeekday(String(hour.weekday));
+    setStartHour(String(hour.start_hour));
+    setEndHour(String(hour.end_hour));
+    setIntervalMinutes(String(hour.interval_minutes));
+  }
+
+  async function deleteHour(id: string) {
+    const confirmed = confirm('Delete these working hours?');
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from('provider_hours')
+      .delete()
+      .eq('id', id);
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setWeekday('1');
-    setStartHour('9');
-    setEndHour('17');
-    setIntervalMinutes('30');
     loadHours();
   }
 
@@ -99,7 +170,8 @@ export default function ProviderHoursPage() {
 
       <div className="dashboard-grid" style={{ marginTop: 24 }}>
         <div className="card card-body">
-          <h2>Add Working Hours</h2>
+          <h2>{editingId ? 'Edit Hours' : 'Add Hours'}</h2>
+
           <div className="form-stack">
             <div>
               <label>Provider</label>
@@ -108,9 +180,9 @@ export default function ProviderHoursPage() {
                 onChange={(e) => setSelectedProvider(e.target.value)}
               >
                 <option value="">Select provider</option>
-                {providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.name}
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
                   </option>
                 ))}
               </select>
@@ -128,7 +200,7 @@ export default function ProviderHoursPage() {
             </div>
 
             <div>
-              <label>Start Hour (24-hour)</label>
+              <label>Start Hour</label>
               <input
                 type="number"
                 min="0"
@@ -139,7 +211,7 @@ export default function ProviderHoursPage() {
             </div>
 
             <div>
-              <label>End Hour (24-hour)</label>
+              <label>End Hour</label>
               <input
                 type="number"
                 min="1"
@@ -150,20 +222,28 @@ export default function ProviderHoursPage() {
             </div>
 
             <div>
-              <label>Interval Minutes</label>
+              <label>Interval</label>
               <select
                 value={intervalMinutes}
                 onChange={(e) => setIntervalMinutes(e.target.value)}
               >
-                <option value="15">15</option>
-                <option value="30">30</option>
-                <option value="60">60</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="60">60 min</option>
               </select>
             </div>
 
-            <button className="button" onClick={saveHours}>
-              Save Hours
-            </button>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="button" onClick={saveHours}>
+                {editingId ? 'Update Hours' : 'Save Hours'}
+              </button>
+
+              {editingId && (
+                <button className="button secondary" onClick={resetForm}>
+                  Cancel Edit
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -171,20 +251,36 @@ export default function ProviderHoursPage() {
           <h2>Saved Hours</h2>
 
           {hours.length === 0 ? (
-            <p>No provider hours saved yet.</p>
+            <p>No hours set yet.</p>
           ) : (
             <div className="list-stack">
-              {hours.map((item) => {
-                const provider = providers.find((p) => p.id === item.staff_id);
+              {hours.map((h) => {
+                const provider = providers.find((p) => p.id === h.staff_id);
 
                 return (
-                  <div key={item.id} className="list-row">
-                    <strong>{provider?.name || 'Unknown Provider'}</strong>
-                    <span>{weekdayLabels[item.weekday]}</span>
+                  <div key={h.id} className="list-row">
+                    <strong>{provider?.name || 'Unknown'}</strong>
+                    <span>{weekdayLabels[h.weekday]}</span>
                     <span>
-                      {item.start_hour}:00 - {item.end_hour}:00
+                      {h.start_hour}:00 - {h.end_hour}:00
                     </span>
-                    <span>Every {item.interval_minutes} minutes</span>
+                    <span>Every {h.interval_minutes} minutes</span>
+
+                    <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                      <button
+                        className="button secondary"
+                        onClick={() => editHour(h)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        className="button secondary"
+                        onClick={() => deleteHour(h.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 );
               })}
