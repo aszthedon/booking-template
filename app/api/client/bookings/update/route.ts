@@ -33,6 +33,7 @@ export async function POST(req: Request) {
       .from('bookings')
       .select(`
         id,
+        client_id,
         client_name,
         client_email,
         appointment_date,
@@ -49,7 +50,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Booking not found.' }, { status: 404 });
     }
 
-    if (booking.client_email !== user.email) {
+    const ownsBooking =
+      booking.client_id === user.id ||
+      (!booking.client_id && booking.client_email === user.email);
+
+    if (!ownsBooking) {
       return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
     }
 
