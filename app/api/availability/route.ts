@@ -18,18 +18,16 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get('date');
   const providerId = searchParams.get('providerId');
-  const durationMinutesParam = searchParams.get('durationMinutes');
+  const variationId = searchParams.get('variationId');
 
-  if (!date || !providerId || !durationMinutesParam) {
+  if (!date || !providerId || !variationId) {
     return NextResponse.json(
-      { error: 'Missing date, providerId, or durationMinutes.' },
+      { error: 'Missing date, providerId, or variationId.' },
       { status: 400 }
     );
   }
 
-  const durationMinutes = Number(durationMinutesParam);
   const supabase = createAdminClient();
-
   const jsDate = new Date(`${date}T12:00:00`);
   const weekday = jsDate.getDay();
 
@@ -64,6 +62,22 @@ export async function GET(req: Request) {
     });
   }
 
+  const { data: selectedVariation, error: variationError } = await supabase
+    .from('service_variations')
+    .select('duration_minutes, buffer_minutes')
+    .eq('id', variationId)
+    .single();
+
+  if (variationError || !selectedVariation) {
+    return NextResponse.json(
+      { error: 'Could not load selected variation.' },
+      { status: 400 }
+    );
+  }
+
+  const totalRequestedMinutes =
+    selectedVariation.duration_minutes + selectedVariation.buffer_minutes;
+
   const slotMinutes = buildSlotMinutes(
     providerHours.start_hour,
     providerHours.end_hour,
@@ -79,7 +93,8 @@ export async function GET(req: Request) {
       appointment_time,
       status,
       service_variations (
-        duration_minutes
+        duration_minutes,
+        buffer_minutes
       )
     `)
     .eq('appointment_date', date)
@@ -92,20 +107,23 @@ export async function GET(req: Request) {
 
   const existingRanges = (bookings || []).map((booking: any) => {
     const start = parseTimeToMinutes(booking.appointment_time);
-    const duration =
-      Array.isArray(booking.service_variations)
-        ? booking.service_variations[0]?.duration_minutes || 30
-        : booking.service_variations?.duration_minutes || 30;
+
+    const variation = Array.isArray(booking.service_variations)
+      ? booking.service_variations[0]
+      : booking.service_variations;
+
+    const totalMinutes =
+      (variation?.duration_minutes || 30) + (variation?.buffer_minutes || 0);
 
     return {
       start,
-      end: start + duration,
+      end: start + totalMinutes,
     };
   });
 
   const availableSlots = slotMinutes
     .filter((slotStart) => {
-      const slotEnd = slotStart + durationMinutes;
+      const slotEnd = slotStart + totalRequestedMinutes;
 
       if (slotEnd > businessEndMinutes) return false;
 
