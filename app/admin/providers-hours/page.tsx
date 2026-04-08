@@ -35,7 +35,7 @@ export default function ProviderHoursPage() {
   const [hours, setHours] = useState<ProviderHour[]>([]);
 
   const [selectedProvider, setSelectedProvider] = useState('');
-  const [weekday, setWeekday] = useState('1');
+  const [selectedDays, setSelectedDays] = useState<number[]>([1]);
   const [startHour, setStartHour] = useState('9');
   const [endHour, setEndHour] = useState('17');
   const [intervalMinutes, setIntervalMinutes] = useState('30');
@@ -68,11 +68,17 @@ export default function ProviderHoursPage() {
 
   function resetForm() {
     setSelectedProvider('');
-    setWeekday('1');
+    setSelectedDays([1]);
     setStartHour('9');
     setEndHour('17');
     setIntervalMinutes('30');
     setEditingId(null);
+  }
+
+  function toggleDay(day: number) {
+    setSelectedDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
   }
 
   async function saveHours() {
@@ -81,31 +87,24 @@ export default function ProviderHoursPage() {
       return;
     }
 
+    if (selectedDays.length === 0) {
+      alert('Select at least one weekday.');
+      return;
+    }
+
     if (Number(startHour) >= Number(endHour)) {
       alert('End hour must be after start hour.');
       return;
     }
 
-    // Prevent duplicates (same provider + weekday)
-    const existing = hours.find(
-      (h) =>
-        h.staff_id === selectedProvider &&
-        h.weekday === Number(weekday) &&
-        h.id !== editingId
-    );
-
-    if (existing) {
-      alert('This provider already has hours set for this day.');
-      return;
-    }
-
     if (editingId) {
-      // UPDATE
+      const day = selectedDays[0];
+
       const { error } = await supabase
         .from('provider_hours')
         .update({
           staff_id: selectedProvider,
-          weekday: Number(weekday),
+          weekday: day,
           start_hour: Number(startHour),
           end_hour: Number(endHour),
           interval_minutes: Number(intervalMinutes),
@@ -117,15 +116,16 @@ export default function ProviderHoursPage() {
         return;
       }
     } else {
-      // INSERT
-      const { error } = await supabase.from('provider_hours').insert({
+      const rows = selectedDays.map((day) => ({
         staff_id: selectedProvider,
-        weekday: Number(weekday),
+        weekday: day,
         start_hour: Number(startHour),
         end_hour: Number(endHour),
         interval_minutes: Number(intervalMinutes),
         is_active: true,
-      });
+      }));
+
+      const { error } = await supabase.from('provider_hours').insert(rows);
 
       if (error) {
         alert(error.message);
@@ -140,7 +140,7 @@ export default function ProviderHoursPage() {
   function editHour(hour: ProviderHour) {
     setEditingId(hour.id);
     setSelectedProvider(hour.staff_id);
-    setWeekday(String(hour.weekday));
+    setSelectedDays([hour.weekday]);
     setStartHour(String(hour.start_hour));
     setEndHour(String(hour.end_hour));
     setIntervalMinutes(String(hour.interval_minutes));
@@ -189,14 +189,19 @@ export default function ProviderHoursPage() {
             </div>
 
             <div>
-              <label>Weekday</label>
-              <select value={weekday} onChange={(e) => setWeekday(e.target.value)}>
+              <label>Weekdays</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {weekdayLabels.map((label, index) => (
-                  <option key={label} value={index}>
+                  <button
+                    key={label}
+                    type="button"
+                    className={selectedDays.includes(index) ? 'button' : 'button secondary'}
+                    onClick={() => toggleDay(index)}
+                  >
                     {label}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
 
             <div>
@@ -267,17 +272,11 @@ export default function ProviderHoursPage() {
                     <span>Every {h.interval_minutes} minutes</span>
 
                     <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                      <button
-                        className="button secondary"
-                        onClick={() => editHour(h)}
-                      >
+                      <button className="button secondary" onClick={() => editHour(h)}>
                         Edit
                       </button>
 
-                      <button
-                        className="button secondary"
-                        onClick={() => deleteHour(h.id)}
-                      >
+                      <button className="button secondary" onClick={() => deleteHour(h.id)}>
                         Delete
                       </button>
                     </div>
