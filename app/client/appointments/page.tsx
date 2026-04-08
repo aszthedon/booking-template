@@ -46,15 +46,10 @@ export default async function ClientAppointmentsPage() {
       amount_due,
       amount_paid,
       created_at,
-      services (
-        name
-      ),
-      service_variations (
-        name,
-        price
-      )
+      services ( name ),
+      service_variations ( name, price )
     `)
-    .eq('client_email', user.email)
+    .or(`client_id.eq.${user.id},client_email.eq.${user.email}`)
     .order('created_at', { ascending: false });
 
   if (error) {
