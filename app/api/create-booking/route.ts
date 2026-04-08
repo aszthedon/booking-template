@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 import { parseTimeToMinutes, rangesOverlap } from '@/lib/time';
 
 export async function POST(req: Request) {
@@ -33,10 +34,15 @@ export async function POST(req: Request) {
     }
 
     const supabase = createAdminClient();
+    const authClient = await createClient();
+
+    const {
+      data: { user },
+    } = await authClient.auth.getUser();
 
     const { data: variation, error: variationError } = await supabase
       .from('service_variations')
-      .select('id, duration_minutes')
+      .select('id, duration_minutes, buffer_minutes')
       .eq('id', variation_id)
       .single();
 
@@ -48,7 +54,8 @@ export async function POST(req: Request) {
     }
 
     const requestedStart = parseTimeToMinutes(appointment_time);
-    const requestedEnd = requestedStart + variation.duration_minutes;
+    const requestedEnd =
+      requestedStart + variation.duration_minutes + variation.buffer_minutes;
 
     const { data: existingBookings, error: existingError } = await supabase
       .from('bookings')
@@ -57,7 +64,8 @@ export async function POST(req: Request) {
         appointment_time,
         status,
         service_variations (
-          duration_minutes
+          duration_minutes,
+          buffer_minutes
         )
       `)
       .eq('appointment_date', appointment_date)
@@ -70,12 +78,15 @@ export async function POST(req: Request) {
 
     const hasConflict = (existingBookings || []).some((booking: any) => {
       const existingStart = parseTimeToMinutes(booking.appointment_time);
-      const existingDuration =
-        Array.isArray(booking.service_variations)
-          ? booking.service_variations[0]?.duration_minutes || 30
-          : booking.service_variations?.duration_minutes || 30;
 
-      const existingEnd = existingStart + existingDuration;
+      const variation = Array.isArray(booking.service_variations)
+        ? booking.service_variations[0]
+        : booking.service_variations;
+
+      const existingEnd =
+        existingStart +
+        (variation?.duration_minutes || 30) +
+        (variation?.buffer_minutes || 0);
 
       return rangesOverlap(requestedStart, requestedEnd, existingStart, existingEnd);
     });
@@ -93,6 +104,7 @@ export async function POST(req: Request) {
         service_id,
         variation_id,
         staff_id,
+        client_id: user?.id || null,
         client_name,
         client_email,
         appointment_date,
