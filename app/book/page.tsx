@@ -14,6 +14,7 @@ type Variation = {
   name: string;
   price: number;
   duration_minutes: number;
+  buffer_minutes: number;
   deposit_type: 'flat' | 'percent';
   deposit_value: number;
 };
@@ -40,8 +41,10 @@ export default function BookingPage() {
   const [selectedVariation, setSelectedVariation] = useState('');
   const [selectedVariationName, setSelectedVariationName] = useState('');
   const [selectedDuration, setSelectedDuration] = useState(0);
+  const [selectedBuffer, setSelectedBuffer] = useState(0);
   const [selectedDepositAmount, setSelectedDepositAmount] = useState(0);
   const [selectedProvider, setSelectedProvider] = useState('');
+  const [selectedProviderName, setSelectedProviderName] = useState('');
 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -69,7 +72,7 @@ export default function BookingPage() {
   async function loadVariations(serviceId: string) {
     const { data } = await supabase
       .from('service_variations')
-      .select('id, service_id, name, price, duration_minutes, deposit_type, deposit_value')
+      .select('id, service_id, name, price, duration_minutes, buffer_minutes, deposit_type, deposit_value')
       .eq('service_id', serviceId)
       .eq('is_active', true);
 
@@ -85,14 +88,14 @@ export default function BookingPage() {
     setStaff(data || []);
   }
 
-  async function loadAvailability(selectedDate: string, providerId: string, duration: number) {
-    if (!selectedDate || !providerId || !duration) return;
+  async function loadAvailability(selectedDate: string, providerId: string, variationId: string) {
+    if (!selectedDate || !providerId || !variationId) return;
 
     setLoadingSlots(true);
     setTime('');
 
     const response = await fetch(
-      `/api/availability?date=${selectedDate}&providerId=${providerId}&durationMinutes=${duration}`
+      `/api/availability?date=${selectedDate}&providerId=${providerId}&variationId=${variationId}`
     );
     const result = await response.json();
 
@@ -175,7 +178,7 @@ export default function BookingPage() {
     if (!bookingResponse.ok || !bookingResult.booking) {
       alert(bookingResult.error || 'Failed to create booking.');
       setIsSubmitting(false);
-      await loadAvailability(date, selectedProvider, selectedDuration);
+      await loadAvailability(date, selectedProvider, selectedVariation);
       return;
     }
 
@@ -210,123 +213,164 @@ export default function BookingPage() {
     <main className="section shell">
       <h1>Book Appointment</h1>
 
-      <select
-        value={selectedService}
-        onChange={(e) => {
-          const serviceId = e.target.value;
-          const service = services.find((s) => s.id === serviceId);
+      <div className="dashboard-grid" style={{ marginTop: 24 }}>
+        <div className="card card-body">
+          <div className="form-stack">
+            <select
+              value={selectedService}
+              onChange={(e) => {
+                const serviceId = e.target.value;
+                const service = services.find((s) => s.id === serviceId);
 
-          setSelectedService(serviceId);
-          setSelectedServiceName(service?.name || '');
-          setSelectedVariation('');
-          setSelectedVariationName('');
-          setSelectedDuration(0);
-          setSelectedDepositAmount(0);
-          setTime('');
-          setAvailableSlots([]);
-          loadVariations(serviceId);
-        }}
-      >
-        <option value="">Select Service</option>
-        {services.map((s) => (
-          <option key={s.id} value={s.id}>{s.name}</option>
-        ))}
-      </select>
+                setSelectedService(serviceId);
+                setSelectedServiceName(service?.name || '');
+                setSelectedVariation('');
+                setSelectedVariationName('');
+                setSelectedDuration(0);
+                setSelectedBuffer(0);
+                setSelectedDepositAmount(0);
+                setTime('');
+                setAvailableSlots([]);
+                loadVariations(serviceId);
+              }}
+            >
+              <option value="">Select Service</option>
+              {services.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
 
-      <select
-        value={selectedVariation}
-        onChange={(e) => {
-          const variationId = e.target.value;
-          const variation = variations.find((v) => v.id === variationId);
+            <select
+              value={selectedVariation}
+              onChange={(e) => {
+                const variationId = e.target.value;
+                const variation = variations.find((v) => v.id === variationId);
 
-          setSelectedVariation(variationId);
-          setSelectedVariationName(variation?.name || '');
-          setSelectedDuration(Number(variation?.duration_minutes || 0));
-          setSelectedDepositAmount(Number(variation?.deposit_value || 0));
-          setTime('');
-          setAvailableSlots([]);
+                setSelectedVariation(variationId);
+                setSelectedVariationName(variation?.name || '');
+                setSelectedDuration(Number(variation?.duration_minutes || 0));
+                setSelectedBuffer(Number(variation?.buffer_minutes || 0));
+                setSelectedDepositAmount(Number(variation?.deposit_value || 0));
+                setTime('');
+                setAvailableSlots([]);
 
-          if (date && selectedProvider && variation?.duration_minutes) {
-            loadAvailability(date, selectedProvider, variation.duration_minutes);
-          }
-        }}
-      >
-        <option value="">Select Variation</option>
-        {variations.map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.name} — ${v.price} — {v.duration_minutes} min
-          </option>
-        ))}
-      </select>
+                if (date && selectedProvider && variationId) {
+                  loadAvailability(date, selectedProvider, variationId);
+                }
+              }}
+            >
+              <option value="">Select Variation</option>
+              {variations.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name} — ${v.price}
+                </option>
+              ))}
+            </select>
 
-      <select
-        value={selectedProvider}
-        onChange={(e) => {
-          const providerId = e.target.value;
-          setSelectedProvider(providerId);
-          setTime('');
-          setAvailableSlots([]);
+            <select
+              value={selectedProvider}
+              onChange={(e) => {
+                const providerId = e.target.value;
+                const provider = staff.find((s) => s.id === providerId);
 
-          if (date && selectedDuration && providerId) {
-            loadAvailability(date, providerId, selectedDuration);
-          }
-        }}
-      >
-        <option value="">Select Provider</option>
-        {staff.map((member) => (
-          <option key={member.id} value={member.id}>{member.name}</option>
-        ))}
-      </select>
+                setSelectedProvider(providerId);
+                setSelectedProviderName(provider?.name || '');
+                setTime('');
+                setAvailableSlots([]);
 
-      <input
-        type="date"
-        value={date}
-        onChange={(e) => {
-          const selectedDate = e.target.value;
-          setDate(selectedDate);
-          setTime('');
-          setAvailableSlots([]);
+                if (date && selectedVariation && providerId) {
+                  loadAvailability(date, providerId, selectedVariation);
+                }
+              }}
+            >
+              <option value="">Select Provider</option>
+              {staff.map((member) => (
+                <option key={member.id} value={member.id}>{member.name}</option>
+              ))}
+            </select>
 
-          if (selectedDate && selectedProvider && selectedDuration) {
-            loadAvailability(selectedDate, selectedProvider, selectedDuration);
-          }
-        }}
-      />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => {
+                const selectedDate = e.target.value;
+                setDate(selectedDate);
+                setTime('');
+                setAvailableSlots([]);
 
-      <select
-        value={time}
-        onChange={(e) => setTime(e.target.value)}
-        disabled={!date || !selectedProvider || !selectedDuration || loadingSlots}
-      >
-        <option value="">
-          {loadingSlots ? 'Loading times...' : 'Select Available Time'}
-        </option>
-        {availableSlots.map((slot) => (
-          <option key={slot} value={slot}>{slot}</option>
-        ))}
-      </select>
+                if (selectedDate && selectedProvider && selectedVariation) {
+                  loadAvailability(selectedDate, selectedProvider, selectedVariation);
+                }
+              }}
+            />
 
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your Name" />
-      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your Email" />
+            <select
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              disabled={!date || !selectedProvider || !selectedVariation || loadingSlots}
+            >
+              <option value="">
+                {loadingSlots ? 'Loading available times...' : 'Select Available Time'}
+              </option>
+              {availableSlots.map((slot) => (
+                <option key={slot} value={slot}>{slot}</option>
+              ))}
+            </select>
 
-      <input
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={(e) => setFiles(Array.from(e.target.files || []))}
-      />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your Name" />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your Email" />
 
-      <p style={{ marginTop: 12 }}>
-        Duration: <strong>{selectedDuration || 0} min</strong>
-      </p>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setFiles(Array.from(e.target.files || []))}
+            />
 
-      <p style={{ marginTop: 6 }}>
-        Deposit due today: <strong>${selectedDepositAmount || 0}</strong>
-      </p>
+            <button onClick={handleBookingAndPayment} className="button" disabled={isSubmitting}>
+              {isSubmitting ? 'Preparing checkout...' : 'Book and Pay Deposit'}
+            </button>
+          </div>
+        </div>
 
-      <button onClick={handleBookingAndPayment} className="button" disabled={isSubmitting}>
-        {isSubmitting ? 'Redirecting to payment...' : 'Book and Pay Deposit'}
-      </button>
+        <div className="card card-body">
+          <h2>Appointment Summary</h2>
+          <div className="list-stack">
+            <div className="list-row">
+              <strong>Service</strong>
+              <span>{selectedServiceName || 'Not selected'}</span>
+            </div>
+            <div className="list-row">
+              <strong>Variation</strong>
+              <span>{selectedVariationName || 'Not selected'}</span>
+            </div>
+            <div className="list-row">
+              <strong>Provider</strong>
+              <span>{selectedProviderName || 'Not selected'}</span>
+            </div>
+            <div className="list-row">
+              <strong>Date & Time</strong>
+              <span>{date || 'No date'} {time ? `at ${time}` : ''}</span>
+            </div>
+            <div className="list-row">
+              <strong>Duration</strong>
+              <span>{selectedDuration || 0} min</span>
+            </div>
+            <div className="list-row">
+              <strong>Buffer Time</strong>
+              <span>{selectedBuffer || 0} min</span>
+            </div>
+            <div className="list-row">
+              <strong>Deposit Due Today</strong>
+              <span>${selectedDepositAmount || 0}</span>
+            </div>
+            <div className="list-row">
+              <strong>Uploaded Photos</strong>
+              <span>{files.length} file(s)</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }
