@@ -6,6 +6,12 @@ import {
   sendClientRescheduledEmail,
 } from '@/lib/email';
 
+function hoursUntilAppointment(date: string, time: string) {
+  const appointment = new Date(`${date} ${time}`);
+  const now = new Date();
+  return (appointment.getTime() - now.getTime()) / (1000 * 60 * 60);
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -67,9 +73,22 @@ export async function POST(req: Request) {
       : booking.service_variations?.name || 'Variation';
 
     if (action === 'cancel') {
+      const hoursRemaining = booking.appointment_date && booking.appointment_time
+        ? hoursUntilAppointment(booking.appointment_date, booking.appointment_time)
+        : 0;
+
+      const refundable = hoursRemaining >= 48;
+
       const { error } = await admin
         .from('bookings')
-        .update({ status: 'cancelled' })
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          refundable,
+          cancellation_policy: refundable
+            ? 'Cancelled 48+ hours before appointment'
+            : 'Cancelled under 48 hours before appointment',
+        })
         .eq('id', bookingId);
 
       if (error) {
@@ -87,7 +106,7 @@ export async function POST(req: Request) {
         });
       }
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, refundable });
     }
 
     if (action === 'reschedule') {
