@@ -12,6 +12,10 @@ type BookingRow = {
   payment_status: string | null;
   amount_due: number | null;
   amount_paid: number | null;
+  refund_status: string | null;
+  refunded_amount: number | null;
+  refundable: boolean | null;
+  cancellation_policy: string | null;
   created_at: string | null;
   services: {
     name: string | null;
@@ -45,11 +49,15 @@ export default async function ClientAppointmentsPage() {
       payment_status,
       amount_due,
       amount_paid,
+      refund_status,
+      refunded_amount,
+      refundable,
+      cancellation_policy,
       created_at,
       services ( name ),
       service_variations ( name, price )
     `)
-    .or(`client_id.eq.${user.id},client_email.eq.${user.email}`)
+    .eq('client_id', user.id)
     .order('created_at', { ascending: false });
 
   if (error) {
