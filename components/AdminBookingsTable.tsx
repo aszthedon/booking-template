@@ -38,6 +38,7 @@ export default function AdminBookingsTable({
 }) {
   const [rows, setRows] = useState(bookings);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
@@ -53,7 +54,8 @@ export default function AdminBookingsTable({
         row.client_name?.toLowerCase().includes(query) ||
         row.client_email?.toLowerCase().includes(query) ||
         row.services?.name?.toLowerCase().includes(query) ||
-        row.service_variations?.name?.toLowerCase().includes(query);
+        row.service_variations?.name?.toLowerCase().includes(query) ||
+        row.staff?.name?.toLowerCase().includes(query);
 
       const matchesBooking =
         bookingFilter === 'all' || row.status === bookingFilter;
@@ -92,9 +94,36 @@ export default function AdminBookingsTable({
     alert('Booking updated successfully.');
   }
 
+  async function handleMove(id: string) {
+    const row = rows.find((b) => b.id === id);
+    if (!row) return;
+
+    setMovingId(id);
+
+    const response = await fetch('/api/admin/bookings/reschedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bookingId: id,
+        appointment_date: row.appointment_date,
+        appointment_time: row.appointment_time,
+      }),
+    });
+
+    const result = await response.json();
+    setMovingId(null);
+
+    if (!response.ok) {
+      alert(result.error || 'Failed to move booking.');
+      return;
+    }
+
+    alert('Booking moved successfully.');
+  }
+
   function updateRow(
     id: string,
-    field: 'status' | 'payment_status',
+    field: 'status' | 'payment_status' | 'appointment_date' | 'appointment_time',
     value: string
   ) {
     setRows((prev) =>
@@ -118,7 +147,7 @@ export default function AdminBookingsTable({
             <label>Search</label>
             <input
               type="text"
-              placeholder="Search client, email, service, or variation"
+              placeholder="Search client, email, service, variation, or provider"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -172,122 +201,195 @@ export default function AdminBookingsTable({
               </thead>
               <tbody>
                 {filteredRows.map((b) => (
-                  <>
-                    <tr key={b.id}>
-                      <td style={td}>{b.client_name || '—'}</td>
-                      <td style={td}>
-                        {b.services?.name || '—'} / {b.service_variations?.name || '—'}
-                      </td>
-                      <td style={td}>{b.appointment_date || '—'}</td>
-                      <td style={td}>{b.appointment_time || '—'}</td>
-
-                      <td style={td}>
-                        <select
-                          value={b.status || 'pending'}
-                          onChange={(e) =>
-                            updateRow(b.id, 'status', e.target.value)
-                          }
-                        >
-                          <option value="pending">pending</option>
-                          <option value="confirmed">confirmed</option>
-                          <option value="completed">completed</option>
-                          <option value="cancelled">cancelled</option>
-                        </select>
-                      </td>
-
-                      <td style={td}>
-                        <select
-                          value={b.payment_status || 'unpaid'}
-                          onChange={(e) =>
-                            updateRow(b.id, 'payment_status', e.target.value)
-                          }
-                        >
-                          <option value="unpaid">unpaid</option>
-                          <option value="paid">paid</option>
-                          <option value="refunded">refunded</option>
-                        </select>
-                      </td>
-
-                      <td style={td}>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button
-                            className="button"
-                            onClick={() => handleSave(b.id)}
-                            disabled={savingId === b.id}
-                          >
-                            {savingId === b.id ? 'Saving...' : 'Save'}
-                          </button>
-
-                          <button
-                            className="button secondary"
-                            onClick={() =>
-                              setOpenId(openId === b.id ? null : b.id)
-                            }
-                          >
-                            {openId === b.id ? 'Close' : 'Details'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-
-                    {openId === b.id && (
-                      <tr>
-                        <td colSpan={7} style={{ padding: 16, background: '#fafafa' }}>
-                          <div style={{ display: 'grid', gap: 12 }}>
-                            <div>
-                              <strong>Client Email:</strong> {b.client_email || '—'}
-                            </div>
-                            <div>
-                              <strong>Provider:</strong> {b.staff?.name || 'Unassigned'}
-                            </div>
-                            <div>
-                              <strong>Amount Due:</strong> ${b.amount_due ?? 0}
-                            </div>
-                            <div>
-                              <strong>Amount Paid:</strong> ${b.amount_paid ?? 0}
-                            </div>
-
-                            <div>
-                              <strong>Uploaded Inspiration Photos:</strong>
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  gap: 12,
-                                  flexWrap: 'wrap',
-                                  marginTop: 12,
-                                }}
-                              >
-                                {b.booking_photos && b.booking_photos.length > 0 ? (
-                                  b.booking_photos.map((photo) => (
-                                    <img
-                                      key={photo.id}
-                                      src={photo.public_url}
-                                      alt="Inspiration"
-                                      style={{
-                                        width: 120,
-                                        height: 120,
-                                        objectFit: 'cover',
-                                        borderRadius: 12,
-                                        border: '1px solid #ddd',
-                                      }}
-                                    />
-                                  ))
-                                ) : (
-                                  <span>No photos uploaded.</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
+                  <FragmentRow
+                    key={b.id}
+                    booking={b}
+                    open={openId === b.id}
+                    saving={savingId === b.id}
+                    moving={movingId === b.id}
+                    onToggle={() => setOpenId(openId === b.id ? null : b.id)}
+                    onSave={() => handleSave(b.id)}
+                    onMove={() => handleMove(b.id)}
+                    onUpdate={updateRow}
+                  />
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+function FragmentRow({
+  booking,
+  open,
+  saving,
+  moving,
+  onToggle,
+  onSave,
+  onMove,
+  onUpdate,
+}: {
+  booking: BookingRow;
+  open: boolean;
+  saving: boolean;
+  moving: boolean;
+  onToggle: () => void;
+  onSave: () => void;
+  onMove: () => void;
+  onUpdate: (
+    id: string,
+    field: 'status' | 'payment_status' | 'appointment_date' | 'appointment_time',
+    value: string
+  ) => void;
+}) {
+  return (
+    <>
+      <tr>
+        <td style={td}>{booking.client_name || '—'}</td>
+        <td style={td}>
+          {booking.services?.name || '—'} / {booking.service_variations?.name || '—'}
+        </td>
+        <td style={td}>{booking.appointment_date || '—'}</td>
+        <td style={td}>{booking.appointment_time || '—'}</td>
+
+        <td style={td}>
+          <select
+            value={booking.status || 'pending'}
+            onChange={(e) =>
+              onUpdate(booking.id, 'status', e.target.value)
+            }
+          >
+            <option value="pending">pending</option>
+            <option value="confirmed">confirmed</option>
+            <option value="completed">completed</option>
+            <option value="cancelled">cancelled</option>
+          </select>
+        </td>
+
+        <td style={td}>
+          <select
+            value={booking.payment_status || 'unpaid'}
+            onChange={(e) =>
+              onUpdate(booking.id, 'payment_status', e.target.value)
+            }
+          >
+            <option value="unpaid">unpaid</option>
+            <option value="paid">paid</option>
+            <option value="refunded">refunded</option>
+          </select>
+        </td>
+
+        <td style={td}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              className="button"
+              onClick={onSave}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+
+            <button
+              className="button secondary"
+              onClick={onToggle}
+            >
+              {open ? 'Close' : 'Details'}
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      {open && (
+        <tr>
+          <td colSpan={7} style={{ padding: 16, background: '#fafafa' }}>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <strong>Client Email:</strong> {booking.client_email || '—'}
+              </div>
+              <div>
+                <strong>Provider:</strong> {booking.staff?.name || 'Unassigned'}
+              </div>
+              <div>
+                <strong>Amount Due:</strong> ${booking.amount_due ?? 0}
+              </div>
+              <div>
+                <strong>Amount Paid:</strong> ${booking.amount_paid ?? 0}
+              </div>
+
+              <div style={{ marginTop: 8 }}>
+                <strong>Move Booking</strong>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr auto',
+                    gap: 12,
+                    marginTop: 8,
+                  }}
+                >
+                  <input
+                    type="date"
+                    value={booking.appointment_date || ''}
+                    onChange={(e) =>
+                      onUpdate(booking.id, 'appointment_date', e.target.value)
+                    }
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="e.g. 2:00 PM"
+                    value={booking.appointment_time || ''}
+                    onChange={(e) =>
+                      onUpdate(booking.id, 'appointment_time', e.target.value)
+                    }
+                  />
+
+                  <button
+                    className="button secondary"
+                    onClick={onMove}
+                    disabled={moving}
+                  >
+                    {moving ? 'Moving...' : 'Move'}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <strong>Uploaded Inspiration Photos:</strong>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                    marginTop: 12,
+                  }}
+                >
+                  {booking.booking_photos && booking.booking_photos.length > 0 ? (
+                    booking.booking_photos.map((photo) => (
+                      <img
+                        key={photo.id}
+                        src={photo.public_url}
+                        alt="Inspiration"
+                        style={{
+                          width: 120,
+                          height: 120,
+                          objectFit: 'cover',
+                          borderRadius: 12,
+                          border: '1px solid #ddd',
+                        }}
+                      />
+                    ))
+                  ) : (
+                    <span>No photos uploaded.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
     </>
   );
 }
@@ -305,58 +407,3 @@ const td: React.CSSProperties = {
   whiteSpace: 'nowrap',
   verticalAlign: 'top',
 };
-<div style={{ marginTop: 16 }}>
-  <strong>Move Booking</strong>
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, marginTop: 8 }}>
-    <input
-      type="date"
-      onChange={(e) => {
-        setRows((prev) =>
-          prev.map((row) =>
-            row.id === b.id ? { ...row, appointment_date: e.target.value } : row
-          )
-        );
-      }}
-      value={b.appointment_date || ''}
-    />
-
-    <input
-      type="text"
-      placeholder="e.g. 2:00 PM"
-      onChange={(e) => {
-        setRows((prev) =>
-          prev.map((row) =>
-            row.id === b.id ? { ...row, appointment_time: e.target.value } : row
-          )
-        );
-      }}
-      value={b.appointment_time || ''}
-    />
-
-    <button
-      className="button secondary"
-      onClick={async () => {
-        const response = await fetch('/api/admin/bookings/reschedule', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bookingId: b.id,
-            appointment_date: b.appointment_date,
-            appointment_time: b.appointment_time,
-          }),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          alert(result.error || 'Failed to move booking.');
-          return;
-        }
-
-        alert('Booking moved successfully.');
-      }}
-    >
-      Move
-    </button>
-  </div>
-</div>
