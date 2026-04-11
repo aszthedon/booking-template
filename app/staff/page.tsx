@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import StaffScheduleManager from '@/components/StaffScheduleManager';
 
 type StaffBooking = {
   id: string;
@@ -72,50 +73,7 @@ export default async function StaffDashboardPage() {
     <main className="section shell">
       <p className="eyebrow">Staff Dashboard</p>
       <h1>{staffMember.name}&apos;s Schedule</h1>
-
-      <div className="card card-body" style={{ marginTop: 24 }}>
-        {bookings.length === 0 ? (
-          <p>No appointments assigned yet.</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={th}>Client</th>
-                <th style={th}>Service</th>
-                <th style={th}>Variation</th>
-                <th style={th}>Date</th>
-                <th style={th}>Time</th>
-                <th style={th}>Booking Status</th>
-                <th style={th}>Payment Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookings.map((b) => (
-                <tr key={b.id}>
-                  <td style={td}>{b.client_name || '—'}</td>
-                  <td style={td}>{Array.isArray(b.services) ? b.services[0]?.name : b.services?.name}</td>
-                  <td style={td}>{Array.isArray(b.service_variations) ? b.service_variations[0]?.name : b.service_variations?.name}</td>
-                  <td style={td}>{b.appointment_date || '—'}</td>
-                  <td style={td}>{b.appointment_time || '—'}</td>
-                  <td style={td}>{b.status || '—'}</td>
-                  <td style={td}>{b.payment_status || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <StaffScheduleManager bookings={bookings} />
     </main>
   );
 }
-
-const th: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '10px',
-  borderBottom: '1px solid #ddd',
-};
-
-const td: React.CSSProperties = {
-  padding: '10px',
-  borderBottom: '1px solid #eee',
-};
