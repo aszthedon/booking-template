@@ -13,8 +13,15 @@ type CalendarBooking = {
   amount_due?: number | null;
   amount_paid?: number | null;
   services: { name: string | null } | null;
-  service_variations: { name: string | null } | null;
-  staff: { name: string | null } | null;
+  service_variations: {
+    name: string | null;
+    duration_minutes: number | null;
+    buffer_minutes: number | null;
+  } | null;
+  staff: {
+    id: string | null;
+    name: string | null;
+  } | null;
 };
 
 type StaffOption = {
@@ -68,6 +75,53 @@ function prettyDate(dateString: string) {
   });
 }
 
+function monthDays(dateString: string) {
+  const d = new Date(`${dateString}T12:00:00`);
+  const year = d.getFullYear();
+  const month = d.getMonth();
+
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+
+  return Array.from({ length: last.getDate() }).map((_, i) => {
+    const day = new Date(year, month, i + 1);
+    return day.toISOString().split('T')[0];
+  });
+}
+
+function providerColor(providerName: string | null | undefined) {
+  const palette = [
+    '#7b4b33',
+    '#6d597a',
+    '#355070',
+    '#2a9d8f',
+    '#bc6c25',
+    '#9d4edd',
+    '#457b9d',
+  ];
+
+  if (!providerName) return palette[0];
+
+  let hash = 0;
+  for (let i = 0; i < providerName.length; i++) {
+    hash = providerName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  return palette[Math.abs(hash) % palette.length];
+}
+
+function bookingHeight(booking: CalendarBooking) {
+  const variation = Array.isArray(booking.service_variations)
+    ? booking.service_variations[0]
+    : booking.service_variations;
+
+  const duration = variation?.duration_minutes || 30;
+  const buffer = variation?.buffer_minutes || 0;
+  const total = duration + buffer;
+
+  return Math.max(64, Math.round((total / 30) * 56));
+}
+
 export default function AdminCalendarBoard({
   bookings,
   staffOptions,
@@ -78,13 +132,14 @@ export default function AdminCalendarBoard({
   const [rows, setRows] = useState(bookings);
   const [selectedProvider, setSelectedProvider] = useState('all');
   const [selectedDate, setSelectedDate] = useState(todayISO());
-  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
   const [activeBooking, setActiveBooking] = useState<CalendarBooking | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
 
   const slots = useMemo(() => buildSlots(), []);
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
+  const monthDateList = useMemo(() => monthDays(selectedDate), [selectedDate]);
 
   const filteredBookings = useMemo(() => {
     return rows.filter((booking) => {
@@ -98,11 +153,13 @@ export default function AdminCalendarBoard({
       const matchesDate =
         viewMode === 'day'
           ? booking.appointment_date === selectedDate
-          : weekDates.includes(booking.appointment_date || '');
+          : viewMode === 'week'
+          ? weekDates.includes(booking.appointment_date || '')
+          : monthDateList.includes(booking.appointment_date || '');
 
       return matchesProvider && matchesDate;
     });
-  }, [rows, selectedProvider, selectedDate, viewMode, weekDates]);
+  }, [rows, selectedProvider, selectedDate, viewMode, weekDates, monthDateList]);
 
   const bookingsByTime = useMemo(() => {
     const map = new Map<string, CalendarBooking[]>();
@@ -121,6 +178,18 @@ export default function AdminCalendarBoard({
 
     for (const booking of filteredBookings) {
       const key = `${booking.appointment_date}__${booking.appointment_time}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(booking);
+    }
+
+    return map;
+  }, [filteredBookings]);
+
+  const bookingsByDay = useMemo(() => {
+    const map = new Map<string, CalendarBooking[]>();
+
+    for (const booking of filteredBookings) {
+      const key = booking.appointment_date || '';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(booking);
     }
@@ -200,7 +269,7 @@ export default function AdminCalendarBoard({
 
           <div>
             <label>View</label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 className={viewMode === 'day' ? 'button' : 'button secondary'}
                 onClick={() => setViewMode('day')}
@@ -213,12 +282,18 @@ export default function AdminCalendarBoard({
               >
                 Week
               </button>
+              <button
+                className={viewMode === 'month' ? 'button' : 'button secondary'}
+                onClick={() => setViewMode('month')}
+              >
+                Month
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {viewMode === 'day' ? (
+      {viewMode === 'day' && (
         <div className="card card-body" style={{ marginTop: 24 }}>
           <h2>{prettyDate(selectedDate)}</h2>
 
@@ -280,7 +355,9 @@ export default function AdminCalendarBoard({
             })}
           </div>
         </div>
-      ) : (
+      )}
+
+      {viewMode === 'week' && (
         <div className="card card-body" style={{ marginTop: 24, overflowX: 'auto' }}>
           <h2>Week of {prettyDate(weekDates[0])}</h2>
 
@@ -309,9 +386,8 @@ export default function AdminCalendarBoard({
             ))}
 
             {slots.map((slot) => (
-              <>
+              <div key={`row-${slot}`} style={{ display: 'contents' }}>
                 <div
-                  key={`label-${slot}`}
                   style={{
                     padding: 12,
                     fontWeight: 700,
@@ -353,8 +429,73 @@ export default function AdminCalendarBoard({
                     </div>
                   );
                 })}
-              </>
+              </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'month' && (
+        <div className="card card-body" style={{ marginTop: 24 }}>
+          <h2>Month Overview</h2>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+              gap: 12,
+              marginTop: 16,
+            }}
+          >
+            {monthDateList.map((date) => {
+              const dayBookings = bookingsByDay.get(date) || [];
+
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDate(date);
+                    setViewMode('day');
+                  }}
+                  style={{
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                    borderRadius: 14,
+                    padding: 12,
+                    background: '#fff',
+                    cursor: 'pointer',
+                    minHeight: 120,
+                  }}
+                >
+                  <strong>{prettyDate(date)}</strong>
+                  <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+                    <span>{dayBookings.length} booking(s)</span>
+                    {dayBookings.slice(0, 3).map((booking) => {
+                      const providerName = Array.isArray(booking.staff)
+                        ? booking.staff[0]?.name
+                        : booking.staff?.name;
+
+                      return (
+                        <span
+                          key={booking.id}
+                          style={{
+                            display: 'inline-block',
+                            padding: '4px 8px',
+                            borderRadius: 999,
+                            background: providerColor(providerName),
+                            color: '#fff',
+                            fontSize: '0.78rem',
+                          }}
+                        >
+                          {booking.appointment_time}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -405,6 +546,21 @@ export default function AdminCalendarBoard({
                 {(Array.isArray(activeBooking.service_variations)
                   ? activeBooking.service_variations[0]?.name
                   : activeBooking.service_variations?.name) || '—'}
+              </span>
+            </div>
+            <div className="list-row">
+              <strong>Duration + Buffer</strong>
+              <span>
+                {(() => {
+                  const variation = Array.isArray(activeBooking.service_variations)
+                    ? activeBooking.service_variations[0]
+                    : activeBooking.service_variations;
+
+                  const duration = variation?.duration_minutes || 0;
+                  const buffer = variation?.buffer_minutes || 0;
+
+                  return `${duration} min + ${buffer} min buffer`;
+                })()}
               </span>
             </div>
             <div className="list-row">
@@ -463,6 +619,9 @@ function BookingCard({
     ? booking.staff[0]?.name
     : booking.staff?.name;
 
+  const color = providerColor(providerName);
+  const height = bookingHeight(booking);
+
   return (
     <div
       draggable
@@ -472,8 +631,10 @@ function BookingCard({
       style={{
         textAlign: 'left',
         padding: 14,
+        minHeight: height,
         borderRadius: 14,
-        border: '1px solid #ddd',
+        border: `2px solid ${color}`,
+        borderLeftWidth: 10,
         background: moving ? '#f3ece7' : '#fff',
         cursor: 'grab',
         boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
@@ -483,6 +644,16 @@ function BookingCard({
       <div style={{ marginTop: 6 }}>{serviceName || 'Service'} / {variationName || 'Variation'}</div>
       <div style={{ marginTop: 4, fontSize: '0.92rem', color: '#666' }}>
         {providerName || 'Unassigned'} · {booking.status} · {booking.payment_status}
+      </div>
+      <div style={{ marginTop: 8, fontSize: '0.82rem', color: color, fontWeight: 700 }}>
+        {(() => {
+          const variation = Array.isArray(booking.service_variations)
+            ? booking.service_variations[0]
+            : booking.service_variations;
+          const duration = variation?.duration_minutes || 0;
+          const buffer = variation?.buffer_minutes || 0;
+          return `${duration}m + ${buffer}m buffer`;
+        })()}
       </div>
     </div>
   );
