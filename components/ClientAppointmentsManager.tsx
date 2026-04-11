@@ -12,6 +12,10 @@ type BookingRow = {
   payment_status: string | null;
   amount_due: number | null;
   amount_paid: number | null;
+  refund_status: string | null;
+  refunded_amount: number | null;
+  refundable: boolean | null;
+  cancellation_policy: string | null;
   created_at: string | null;
   services: {
     name: string | null;
@@ -82,7 +86,17 @@ export default function ClientAppointmentsManager({
 
     setRows((prev) =>
       prev.map((row) =>
-        row.id === bookingId ? { ...row, status: 'cancelled' } : row
+        row.id === bookingId
+          ? {
+              ...row,
+              status: 'cancelled',
+              refundable: result.refundable ?? row.refundable,
+              cancellation_policy:
+                result.refundable
+                  ? 'Cancelled 48+ hours before appointment'
+                  : 'Cancelled under 48 hours before appointment',
+            }
+          : row
       )
     );
   }
@@ -147,8 +161,7 @@ export default function ClientAppointmentsManager({
                 <th style={th}>Time</th>
                 <th style={th}>Booking Status</th>
                 <th style={th}>Payment Status</th>
-                <th style={th}>Amount Due</th>
-                <th style={th}>Amount Paid</th>
+                <th style={th}>Refund</th>
                 <th style={th}>Actions</th>
               </tr>
             </thead>
@@ -162,8 +175,26 @@ export default function ClientAppointmentsManager({
                     <td style={td}>{b.appointment_time || '—'}</td>
                     <td style={td}>{b.status || '—'}</td>
                     <td style={td}>{b.payment_status || '—'}</td>
-                    <td style={td}>${b.amount_due ?? 0}</td>
-                    <td style={td}>${b.amount_paid ?? 0}</td>
+                    <td style={td}>
+                      <div style={{ display: 'grid', gap: 4 }}>
+                        <span>{b.refund_status || 'not_refunded'}</span>
+                        {b.refundable === true && (
+                          <span style={{ color: 'green', fontSize: '0.85rem' }}>
+                            Eligible for refund
+                          </span>
+                        )}
+                        {b.refundable === false && b.status === 'cancelled' && (
+                          <span style={{ color: '#a15c00', fontSize: '0.85rem' }}>
+                            Not eligible for refund
+                          </span>
+                        )}
+                        {b.refunded_amount ? (
+                          <span style={{ fontSize: '0.85rem' }}>
+                            Refunded: ${b.refunded_amount}
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
                     <td style={td}>
                       {(b.status === 'pending' || b.status === 'confirmed') && (
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -192,7 +223,7 @@ export default function ClientAppointmentsManager({
 
                   {activeBookingId === b.id && (
                     <tr>
-                      <td colSpan={9} style={{ padding: 16, background: '#fafafa' }}>
+                      <td colSpan={8} style={{ padding: 16, background: '#fafafa' }}>
                         <div
                           style={{
                             display: 'grid',
@@ -242,6 +273,12 @@ export default function ClientAppointmentsManager({
                             </button>
                           </div>
                         </div>
+
+                        {b.cancellation_policy ? (
+                          <div style={{ marginTop: 12 }}>
+                            <strong>Policy:</strong> {b.cancellation_policy}
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   )}
