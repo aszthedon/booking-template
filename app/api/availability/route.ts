@@ -62,21 +62,29 @@ export async function GET(req: Request) {
     });
   }
 
-  const { data: selectedVariation, error: variationError } = await supabase
+  const { data: variation, error: variationError } = await supabase
     .from('service_variations')
-    .select('duration_minutes, buffer_minutes')
+    .select('service_id, duration_minutes, buffer_minutes')
     .eq('id', variationId)
     .single();
 
-  if (variationError || !selectedVariation) {
+  if (variationError || !variation) {
     return NextResponse.json(
       { error: 'Could not load selected variation.' },
       { status: 400 }
     );
   }
 
+  const { data: override } = await supabase
+    .from('staff_services')
+    .select('duration_override_minutes, buffer_override_minutes')
+    .eq('staff_id', providerId)
+    .eq('service_id', variation.service_id)
+    .maybeSingle();
+
   const totalRequestedMinutes =
-    selectedVariation.duration_minutes + selectedVariation.buffer_minutes;
+    (override?.duration_override_minutes ?? variation.duration_minutes ?? 30) +
+    (override?.buffer_override_minutes ?? variation.buffer_minutes ?? 0);
 
   const slotMinutes = buildSlotMinutes(
     providerHours.start_hour,
@@ -92,7 +100,9 @@ export async function GET(req: Request) {
       id,
       appointment_time,
       status,
+      variation_id,
       service_variations (
+        service_id,
         duration_minutes,
         buffer_minutes
       )
@@ -105,21 +115,34 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: bookingsError.message }, { status: 500 });
   }
 
-  const existingRanges = (bookings || []).map((booking: any) => {
-    const start = parseTimeToMinutes(booking.appointment_time);
+  const existingRanges = [];
 
-    const variation = Array.isArray(booking.service_variations)
+  for (const booking of bookings || []) {
+    const bookingVariation = Array.isArray(booking.service_variations)
       ? booking.service_variations[0]
       : booking.service_variations;
 
-    const totalMinutes =
-      (variation?.duration_minutes || 30) + (variation?.buffer_minutes || 0);
+    const { data: bookingOverride } = await supabase
+      .from('staff_services')
+      .select('duration_override_minutes, buffer_override_minutes')
+      .eq('staff_id', providerId)
+      .eq('service_id', bookingVariation?.service_id)
+      .maybeSingle();
 
-    return {
+    const totalMinutes =
+      (bookingOverride?.duration_override_minutes ??
+        bookingVariation?.duration_minutes ??
+        30) +
+      (bookingOverride?.buffer_override_minutes ??
+        bookingVariation?.buffer_minutes ??
+        0);
+
+    const start = parseTimeToMinutes(booking.appointment_time);
+    existingRanges.push({
       start,
       end: start + totalMinutes,
-    };
-  });
+    });
+  }
 
   const availableSlots = slotMinutes
     .filter((slotStart) => {
@@ -137,5 +160,9 @@ export async function GET(req: Request) {
     date,
     availableSlots,
     blocked: false,
+    duration_minutes:
+      override?.duration_override_minutes ?? variation.duration_minutes ?? 30,
+    buffer_minutes:
+      override?.buffer_override_minutes ?? variation.buffer_minutes ?? 0,
   });
 }
