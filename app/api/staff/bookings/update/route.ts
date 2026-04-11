@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { sendClientCancelledEmail } from '@/lib/email';
 
 export async function POST(req: Request) {
   try {
@@ -37,7 +38,16 @@ export async function POST(req: Request) {
 
     const { data: booking, error: bookingError } = await admin
       .from('bookings')
-      .select('id, staff_id')
+      .select(`
+        id,
+        staff_id,
+        client_name,
+        client_email,
+        appointment_date,
+        appointment_time,
+        services ( name ),
+        service_variations ( name )
+      `)
       .eq('id', bookingId)
       .single();
 
@@ -56,6 +66,25 @@ export async function POST(req: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (status === 'cancelled' && booking.client_email) {
+      const serviceName = Array.isArray(booking.services)
+        ? booking.services[0]?.name || 'Service'
+        : booking.services?.name || 'Service';
+
+      const variationName = Array.isArray(booking.service_variations)
+        ? booking.service_variations[0]?.name || 'Variation'
+        : booking.service_variations?.name || 'Variation';
+
+      await sendClientCancelledEmail({
+        to: booking.client_email,
+        clientName: booking.client_name || 'Client',
+        serviceName,
+        variationName,
+        appointmentDate: booking.appointment_date || 'TBD',
+        appointmentTime: booking.appointment_time || 'TBD',
+      });
     }
 
     return NextResponse.json({ success: true });
