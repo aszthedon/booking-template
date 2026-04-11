@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import {
   sendAdminBookingNotification,
   sendClientConfirmationEmail,
+  sendStaffBookingNotification,
 } from '@/lib/email';
 
 export async function POST(req: Request) {
@@ -29,8 +30,6 @@ export async function POST(req: Request) {
     return new Response('Webhook Error', { status: 400 });
   }
 
-  console.log('🔥 Stripe event received:', event.type);
-
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const bookingId = session.metadata?.bookingId;
@@ -39,7 +38,7 @@ export async function POST(req: Request) {
       const supabase = createAdminClient();
       const amountPaid = session.amount_total ? session.amount_total / 100 : 0;
 
-      const { error: updateError } = await supabase
+      await supabase
         .from('bookings')
         .update({
           payment_status: 'paid',
@@ -52,11 +51,7 @@ export async function POST(req: Request) {
         })
         .eq('id', bookingId);
 
-      if (updateError) {
-        console.error('❌ Supabase webhook update error:', updateError);
-      }
-
-      const { data: booking, error: bookingError } = await supabase
+      const { data: booking } = await supabase
         .from('bookings')
         .select(`
           id,
@@ -65,12 +60,13 @@ export async function POST(req: Request) {
           appointment_date,
           appointment_time,
           services ( name ),
-          service_variations ( name )
+          service_variations ( name ),
+          staff ( name, email )
         `)
         .eq('id', bookingId)
         .single();
 
-      if (!bookingError && booking) {
+      if (booking) {
         const serviceName = Array.isArray(booking.services)
           ? booking.services[0]?.name || 'Service'
           : booking.services?.name || 'Service';
@@ -79,31 +75,43 @@ export async function POST(req: Request) {
           ? booking.service_variations[0]?.name || 'Variation'
           : booking.service_variations?.name || 'Variation';
 
-        try {
-          if (booking.client_email) {
-            await sendClientConfirmationEmail({
-              to: booking.client_email,
-              clientName: booking.client_name || 'Client',
-              serviceName,
-              variationName,
-              appointmentDate: booking.appointment_date || 'TBD',
-              appointmentTime: booking.appointment_time || 'TBD',
-              amountPaid,
-            });
-          }
+        const staffRecord = Array.isArray(booking.staff)
+          ? booking.staff[0]
+          : booking.staff;
 
-          await sendAdminBookingNotification({
-            bookingId: booking.id,
+        if (booking.client_email) {
+          await sendClientConfirmationEmail({
+            to: booking.client_email,
             clientName: booking.client_name || 'Client',
-            clientEmail: booking.client_email || 'No email',
             serviceName,
             variationName,
             appointmentDate: booking.appointment_date || 'TBD',
             appointmentTime: booking.appointment_time || 'TBD',
             amountPaid,
           });
-        } catch (emailError) {
-          console.error('❌ Email send error:', emailError);
+        }
+
+        await sendAdminBookingNotification({
+          bookingId: booking.id,
+          clientName: booking.client_name || 'Client',
+          clientEmail: booking.client_email || 'No email',
+          serviceName,
+          variationName,
+          appointmentDate: booking.appointment_date || 'TBD',
+          appointmentTime: booking.appointment_time || 'TBD',
+          amountPaid,
+        });
+
+        if (staffRecord?.email) {
+          await sendStaffBookingNotification({
+            to: staffRecord.email,
+            providerName: staffRecord.name || 'Provider',
+            clientName: booking.client_name || 'Client',
+            serviceName,
+            variationName,
+            appointmentDate: booking.appointment_date || 'TBD',
+            appointmentTime: booking.appointment_time || 'TBD',
+          });
         }
       }
     }
