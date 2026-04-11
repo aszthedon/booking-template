@@ -35,12 +35,8 @@ export async function POST(req: Request) {
     const session = event.data.object as Stripe.Checkout.Session;
     const bookingId = session.metadata?.bookingId;
 
-    console.log('✅ Checkout session completed');
-    console.log('🆔 Booking ID from metadata:', bookingId);
-
     if (bookingId) {
       const supabase = createAdminClient();
-
       const amountPaid = session.amount_total ? session.amount_total / 100 : 0;
 
       const { error: updateError } = await supabase
@@ -49,13 +45,15 @@ export async function POST(req: Request) {
           payment_status: 'paid',
           status: 'confirmed',
           amount_paid: amountPaid,
+          stripe_payment_intent_id:
+            typeof session.payment_intent === 'string'
+              ? session.payment_intent
+              : null,
         })
         .eq('id', bookingId);
 
       if (updateError) {
         console.error('❌ Supabase webhook update error:', updateError);
-      } else {
-        console.log('✅ Booking successfully updated in DB');
       }
 
       const { data: booking, error: bookingError } = await supabase
@@ -66,28 +64,20 @@ export async function POST(req: Request) {
           client_email,
           appointment_date,
           appointment_time,
-          services (
-            name
-          ),
-          service_variations (
-            name
-          )
+          services ( name ),
+          service_variations ( name )
         `)
         .eq('id', bookingId)
         .single();
 
-      if (bookingError || !booking) {
-        console.error('❌ Failed to load booking for email:', bookingError);
-      } else {
-        const serviceName =
-          Array.isArray(booking.services)
-            ? booking.services[0]?.name || 'Service'
-            : booking.services?.name || 'Service';
+      if (!bookingError && booking) {
+        const serviceName = Array.isArray(booking.services)
+          ? booking.services[0]?.name || 'Service'
+          : booking.services?.name || 'Service';
 
-        const variationName =
-          Array.isArray(booking.service_variations)
-            ? booking.service_variations[0]?.name || 'Variation'
-            : booking.service_variations?.name || 'Variation';
+        const variationName = Array.isArray(booking.service_variations)
+          ? booking.service_variations[0]?.name || 'Variation'
+          : booking.service_variations?.name || 'Variation';
 
         try {
           if (booking.client_email) {
@@ -100,8 +90,6 @@ export async function POST(req: Request) {
               appointmentTime: booking.appointment_time || 'TBD',
               amountPaid,
             });
-
-            console.log('✅ Client confirmation email sent');
           }
 
           await sendAdminBookingNotification({
@@ -114,14 +102,10 @@ export async function POST(req: Request) {
             appointmentTime: booking.appointment_time || 'TBD',
             amountPaid,
           });
-
-          console.log('✅ Admin booking notification sent');
         } catch (emailError) {
           console.error('❌ Email send error:', emailError);
         }
       }
-    } else {
-      console.error('❌ No bookingId found in Stripe metadata');
     }
   }
 
