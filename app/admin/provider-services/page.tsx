@@ -122,3 +122,37 @@ export default function ProviderServicesPage() {
             />
 
             <button className="button" onClick={addAssignment}>
+              Save Assignment
+            </button>
+          </div>
+        </div>
+
+        <div className="card card-body">
+          <h2>Current Assignments</h2>
+          <div className="list-stack">
+            {assignments.map((a) => {
+              const provider = providers.find((p) => p.id === a.staff_id);
+              const service = services.find((s) => s.id === a.service_id);
+
+              return (
+                <div key={a.id} className="list-row">
+                  <strong>{provider?.name || 'Unknown Provider'}</strong>
+                  <span>{service?.name || 'Unknown Service'}</span>
+                  <span>
+                    Duration override: {a.duration_override_minutes ?? 'Default'}
+                  </span>
+                  <span>
+                    Buffer override: {a.buffer_override_minutes ?? 'Default'}
+                  </span>
+                  <button className="button secondary" onClick={() => deleteAssignment(a.id)}>
+                    Remove
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
