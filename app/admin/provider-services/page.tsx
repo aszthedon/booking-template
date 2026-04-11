@@ -5,7 +5,14 @@ import { createClient } from '@/lib/supabase/client';
 
 type Staff = { id: string; name: string };
 type Service = { id: string; name: string };
-type StaffService = { id: string; staff_id: string; service_id: string };
+
+type StaffService = {
+  id: string;
+  staff_id: string;
+  service_id: string;
+  duration_override_minutes: number | null;
+  buffer_override_minutes: number | null;
+};
 
 export default function ProviderServicesPage() {
   const supabase = createClient();
@@ -16,6 +23,8 @@ export default function ProviderServicesPage() {
 
   const [selectedProvider, setSelectedProvider] = useState('');
   const [selectedService, setSelectedService] = useState('');
+  const [durationOverride, setDurationOverride] = useState('');
+  const [bufferOverride, setBufferOverride] = useState('');
 
   useEffect(() => {
     loadAll();
@@ -26,7 +35,9 @@ export default function ProviderServicesPage() {
       await Promise.all([
         supabase.from('staff').select('id, name').eq('is_active', true),
         supabase.from('services').select('id, name').eq('is_active', true),
-        supabase.from('staff_services').select('id, staff_id, service_id'),
+        supabase
+          .from('staff_services')
+          .select('id, staff_id, service_id, duration_override_minutes, buffer_override_minutes'),
       ]);
 
     setProviders(providerData || []);
@@ -43,6 +54,8 @@ export default function ProviderServicesPage() {
     const { error } = await supabase.from('staff_services').insert({
       staff_id: selectedProvider,
       service_id: selectedService,
+      duration_override_minutes: durationOverride ? Number(durationOverride) : null,
+      buffer_override_minutes: bufferOverride ? Number(bufferOverride) : null,
     });
 
     if (error) {
@@ -52,6 +65,8 @@ export default function ProviderServicesPage() {
 
     setSelectedProvider('');
     setSelectedService('');
+    setDurationOverride('');
+    setBufferOverride('');
     loadAll();
   }
 
@@ -92,32 +107,18 @@ export default function ProviderServicesPage() {
               ))}
             </select>
 
+            <input
+              type="number"
+              placeholder="Duration override in minutes (optional)"
+              value={durationOverride}
+              onChange={(e) => setDurationOverride(e.target.value)}
+            />
+
+            <input
+              type="number"
+              placeholder="Buffer override in minutes (optional)"
+              value={bufferOverride}
+              onChange={(e) => setBufferOverride(e.target.value)}
+            />
+
             <button className="button" onClick={addAssignment}>
-              Save Assignment
-            </button>
-          </div>
-        </div>
-
-        <div className="card card-body">
-          <h2>Current Assignments</h2>
-          <div className="list-stack">
-            {assignments.map((a) => {
-              const provider = providers.find((p) => p.id === a.staff_id);
-              const service = services.find((s) => s.id === a.service_id);
-
-              return (
-                <div key={a.id} className="list-row">
-                  <strong>{provider?.name || 'Unknown Provider'}</strong>
-                  <span>{service?.name || 'Unknown Service'}</span>
-                  <button className="button secondary" onClick={() => deleteAssignment(a.id)}>
-                    Remove
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </main>
-  );
-}
