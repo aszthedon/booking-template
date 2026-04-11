@@ -109,6 +109,18 @@ export default function BookingPage() {
     setFilteredStaff(mapped);
   }
 
+  async function loadProviderDuration(providerId: string, serviceId: string, variationId: string) {
+    const response = await fetch(
+      `/api/provider-service-config?providerId=${providerId}&serviceId=${serviceId}&variationId=${variationId}`
+    );
+    const result = await response.json();
+
+    if (response.ok) {
+      setSelectedDuration(result.duration_minutes || 0);
+      setSelectedBuffer(result.buffer_minutes || 0);
+    }
+  }
+
   async function loadAvailability(selectedDate: string, providerId: string, variationId: string) {
     if (!selectedDate || !providerId || !variationId) return;
 
@@ -128,6 +140,8 @@ export default function BookingPage() {
     }
 
     setAvailableSlots(result.availableSlots || []);
+    setSelectedDuration(result.duration_minutes || 0);
+    setSelectedBuffer(result.buffer_minutes || 0);
     setLoadingSlots(false);
   }
 
@@ -234,7 +248,7 @@ export default function BookingPage() {
     <main className="section shell">
       <h1>Book Appointment</h1>
 
-      <div className="dashboard-grid" style={{ marginTop: 24 }}>
+      <div className="dashboard-grid mobile-one-col" style={{ marginTop: 24 }}>
         <div className="card card-body">
           <div className="form-stack">
             <select
@@ -279,6 +293,10 @@ export default function BookingPage() {
                 setTime('');
                 setAvailableSlots([]);
 
+                if (selectedProvider && selectedService && variationId) {
+                  loadProviderDuration(selectedProvider, selectedService, variationId);
+                }
+
                 if (date && selectedProvider && variationId) {
                   loadAvailability(date, selectedProvider, variationId);
                 }
@@ -302,6 +320,10 @@ export default function BookingPage() {
                 setSelectedProviderName(provider?.name || '');
                 setTime('');
                 setAvailableSlots([]);
+
+                if (providerId && selectedService && selectedVariation) {
+                  loadProviderDuration(providerId, selectedService, selectedVariation);
+                }
 
                 if (date && selectedVariation && providerId) {
                   loadAvailability(date, providerId, selectedVariation);
@@ -379,11 +401,11 @@ export default function BookingPage() {
               <span>{date || 'No date'} {time ? `at ${time}` : ''}</span>
             </div>
             <div className="list-row">
-              <strong>Duration</strong>
+              <strong>Effective Duration</strong>
               <span>{selectedDuration || 0} min</span>
             </div>
             <div className="list-row">
-              <strong>Buffer Time</strong>
+              <strong>Effective Buffer</strong>
               <span>{selectedBuffer || 0} min</span>
             </div>
             <div className="list-row">
