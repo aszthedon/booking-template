@@ -33,7 +33,8 @@ export default function BookingPage() {
 
   const [services, setServices] = useState<Service[]>([]);
   const [variations, setVariations] = useState<Variation[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]);
+  const [allStaff, setAllStaff] = useState<Staff[]>([]);
+  const [filteredStaff, setFilteredStaff] = useState<Staff[]>([]);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
   const [selectedService, setSelectedService] = useState('');
@@ -85,7 +86,27 @@ export default function BookingPage() {
       .select('id, name')
       .eq('is_active', true);
 
-    setStaff(data || []);
+    setAllStaff(data || []);
+  }
+
+  async function loadStaffForService(serviceId: string) {
+    const { data } = await supabase
+      .from('staff_services')
+      .select(`
+        staff_id,
+        staff (
+          id,
+          name
+        )
+      `)
+      .eq('service_id', serviceId);
+
+    const mapped =
+      (data || [])
+        .map((row: any) => Array.isArray(row.staff) ? row.staff[0] : row.staff)
+        .filter(Boolean) || [];
+
+    setFilteredStaff(mapped);
   }
 
   async function loadAvailability(selectedDate: string, providerId: string, variationId: string) {
@@ -229,9 +250,13 @@ export default function BookingPage() {
                 setSelectedDuration(0);
                 setSelectedBuffer(0);
                 setSelectedDepositAmount(0);
+                setSelectedProvider('');
+                setSelectedProviderName('');
+                setFilteredStaff([]);
                 setTime('');
                 setAvailableSlots([]);
                 loadVariations(serviceId);
+                loadStaffForService(serviceId);
               }}
             >
               <option value="">Select Service</option>
@@ -271,7 +296,7 @@ export default function BookingPage() {
               value={selectedProvider}
               onChange={(e) => {
                 const providerId = e.target.value;
-                const provider = staff.find((s) => s.id === providerId);
+                const provider = filteredStaff.find((s) => s.id === providerId);
 
                 setSelectedProvider(providerId);
                 setSelectedProviderName(provider?.name || '');
@@ -282,9 +307,10 @@ export default function BookingPage() {
                   loadAvailability(date, providerId, selectedVariation);
                 }
               }}
+              disabled={!selectedService}
             >
               <option value="">Select Provider</option>
-              {staff.map((member) => (
+              {(filteredStaff.length > 0 ? filteredStaff : allStaff).map((member) => (
                 <option key={member.id} value={member.id}>{member.name}</option>
               ))}
             </select>
