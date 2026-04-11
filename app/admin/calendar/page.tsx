@@ -12,8 +12,15 @@ type CalendarBooking = {
   amount_due: number | null;
   amount_paid: number | null;
   services: { name: string | null } | null;
-  service_variations: { name: string | null } | null;
-  staff: { name: string | null } | null;
+  service_variations: {
+    name: string | null;
+    duration_minutes: number | null;
+    buffer_minutes: number | null;
+  } | null;
+  staff: {
+    id: string | null;
+    name: string | null;
+  } | null;
 };
 
 type StaffOption = {
@@ -37,8 +44,8 @@ export default async function AdminCalendarPage() {
       amount_due,
       amount_paid,
       services ( name ),
-      service_variations ( name ),
-      staff ( name )
+      service_variations ( name, duration_minutes, buffer_minutes ),
+      staff ( id, name )
     `)
     .in('status', ['pending', 'confirmed', 'completed'])
     .order('appointment_date', { ascending: true })
