@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { sendClientRefundEmail } from '@/lib/email';
 
 export async function POST(req: Request) {
   try {
@@ -17,6 +18,8 @@ export async function POST(req: Request) {
       .from('bookings')
       .select(`
         id,
+        client_name,
+        client_email,
         amount_paid,
         stripe_payment_intent_id,
         refund_status
@@ -46,8 +49,7 @@ export async function POST(req: Request) {
     });
 
     const refundedAmount = refund.amount / 100;
-    const fullRefund =
-      Number(booking.amount_paid || 0) <= refundedAmount;
+    const fullRefund = Number(booking.amount_paid || 0) <= refundedAmount;
 
     const { error: updateError } = await supabase
       .from('bookings')
@@ -60,6 +62,14 @@ export async function POST(req: Request) {
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    if (booking.client_email) {
+      await sendClientRefundEmail({
+        to: booking.client_email,
+        clientName: booking.client_name || 'Client',
+        refundedAmount,
+      });
     }
 
     return NextResponse.json({
