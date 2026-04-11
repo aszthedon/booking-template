@@ -4,6 +4,8 @@ export const adminNav = [
   { href: '/admin/calendar', label: 'Calendar' },
   { href: '/admin/providers', label: 'Providers' },
   { href: '/admin/provider-hours', label: 'Provider Hours' },
+  { href: '/admin/provider-services', label: 'Provider Services' },
+  { href: '/admin/analytics', label: 'Analytics' },
   { href: '/admin/services', label: 'Services' },
 ];
 
