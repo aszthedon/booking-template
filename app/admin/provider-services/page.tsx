@@ -1,0 +1,123 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+
+type Staff = { id: string; name: string };
+type Service = { id: string; name: string };
+type StaffService = { id: string; staff_id: string; service_id: string };
+
+export default function ProviderServicesPage() {
+  const supabase = createClient();
+
+  const [providers, setProviders] = useState<Staff[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [assignments, setAssignments] = useState<StaffService[]>([]);
+
+  const [selectedProvider, setSelectedProvider] = useState('');
+  const [selectedService, setSelectedService] = useState('');
+
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  async function loadAll() {
+    const [{ data: providerData }, { data: serviceData }, { data: assignmentData }] =
+      await Promise.all([
+        supabase.from('staff').select('id, name').eq('is_active', true),
+        supabase.from('services').select('id, name').eq('is_active', true),
+        supabase.from('staff_services').select('id, staff_id, service_id'),
+      ]);
+
+    setProviders(providerData || []);
+    setServices(serviceData || []);
+    setAssignments(assignmentData || []);
+  }
+
+  async function addAssignment() {
+    if (!selectedProvider || !selectedService) {
+      alert('Select provider and service.');
+      return;
+    }
+
+    const { error } = await supabase.from('staff_services').insert({
+      staff_id: selectedProvider,
+      service_id: selectedService,
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setSelectedProvider('');
+    setSelectedService('');
+    loadAll();
+  }
+
+  async function deleteAssignment(id: string) {
+    const { error } = await supabase
+      .from('staff_services')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    loadAll();
+  }
+
+  return (
+    <main className="section shell">
+      <p className="eyebrow">Admin</p>
+      <h1>Provider Services</h1>
+
+      <div className="dashboard-grid" style={{ marginTop: 24 }}>
+        <div className="card card-body">
+          <h2>Assign Service to Provider</h2>
+          <div className="form-stack">
+            <select value={selectedProvider} onChange={(e) => setSelectedProvider(e.target.value)}>
+              <option value="">Select provider</option>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+
+            <select value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
+              <option value="">Select service</option>
+              {services.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+
+            <button className="button" onClick={addAssignment}>
+              Save Assignment
+            </button>
+          </div>
+        </div>
+
+        <div className="card card-body">
+          <h2>Current Assignments</h2>
+          <div className="list-stack">
+            {assignments.map((a) => {
+              const provider = providers.find((p) => p.id === a.staff_id);
+              const service = services.find((s) => s.id === a.service_id);
+
+              return (
+                <div key={a.id} className="list-row">
+                  <strong>{provider?.name || 'Unknown Provider'}</strong>
+                  <span>{service?.name || 'Unknown Service'}</span>
+                  <button className="button secondary" onClick={() => deleteAssignment(a.id)}>
+                    Remove
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
