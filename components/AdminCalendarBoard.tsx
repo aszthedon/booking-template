@@ -46,6 +46,28 @@ function todayISO() {
   return new Date().toISOString().split('T')[0];
 }
 
+function getWeekDates(dateString: string) {
+  const date = new Date(`${dateString}T12:00:00`);
+  const day = date.getDay();
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - day);
+
+  return Array.from({ length: 7 }).map((_, index) => {
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + index);
+    return d.toISOString().split('T')[0];
+  });
+}
+
+function prettyDate(dateString: string) {
+  const d = new Date(`${dateString}T12:00:00`);
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export default function AdminCalendarBoard({
   bookings,
   staffOptions,
@@ -53,14 +75,19 @@ export default function AdminCalendarBoard({
   bookings: CalendarBooking[];
   staffOptions: StaffOption[];
 }) {
+  const [rows, setRows] = useState(bookings);
   const [selectedProvider, setSelectedProvider] = useState('all');
   const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [activeBooking, setActiveBooking] = useState<CalendarBooking | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
 
   const slots = useMemo(() => buildSlots(), []);
+  const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
 
   const filteredBookings = useMemo(() => {
-    return bookings.filter((booking) => {
+    return rows.filter((booking) => {
       const providerName = Array.isArray(booking.staff)
         ? booking.staff[0]?.name
         : booking.staff?.name;
@@ -68,11 +95,14 @@ export default function AdminCalendarBoard({
       const matchesProvider =
         selectedProvider === 'all' || providerName === selectedProvider;
 
-      const matchesDate = booking.appointment_date === selectedDate;
+      const matchesDate =
+        viewMode === 'day'
+          ? booking.appointment_date === selectedDate
+          : weekDates.includes(booking.appointment_date || '');
 
       return matchesProvider && matchesDate;
     });
-  }, [bookings, selectedProvider, selectedDate]);
+  }, [rows, selectedProvider, selectedDate, viewMode, weekDates]);
 
   const bookingsByTime = useMemo(() => {
     const map = new Map<string, CalendarBooking[]>();
@@ -86,13 +116,61 @@ export default function AdminCalendarBoard({
     return map;
   }, [filteredBookings]);
 
+  const bookingsByDayAndTime = useMemo(() => {
+    const map = new Map<string, CalendarBooking[]>();
+
+    for (const booking of filteredBookings) {
+      const key = `${booking.appointment_date}__${booking.appointment_time}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(booking);
+    }
+
+    return map;
+  }, [filteredBookings]);
+
+  async function moveBooking(bookingId: string, newDate: string, newTime: string) {
+    setMovingId(bookingId);
+
+    const response = await fetch('/api/admin/bookings/reschedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bookingId,
+        appointment_date: newDate,
+        appointment_time: newTime,
+      }),
+    });
+
+    const result = await response.json();
+    setMovingId(null);
+
+    if (!response.ok) {
+      alert(result.error || 'Failed to move booking.');
+      return;
+    }
+
+    setRows((prev) =>
+      prev.map((row) =>
+        row.id === bookingId
+          ? { ...row, appointment_date: newDate, appointment_time: newTime }
+          : row
+      )
+    );
+  }
+
+  function onDropToSlot(newDate: string, newTime: string) {
+    if (!draggingId) return;
+    moveBooking(draggingId, newDate, newTime);
+    setDraggingId(null);
+  }
+
   return (
     <>
       <div className="card card-body" style={{ marginTop: 24 }}>
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: '1fr 1fr 1fr',
             gap: 16,
           }}
         >
@@ -119,84 +197,167 @@ export default function AdminCalendarBoard({
               onChange={(e) => setSelectedDate(e.target.value)}
             />
           </div>
+
+          <div>
+            <label>View</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className={viewMode === 'day' ? 'button' : 'button secondary'}
+                onClick={() => setViewMode('day')}
+              >
+                Day
+              </button>
+              <button
+                className={viewMode === 'week' ? 'button' : 'button secondary'}
+                onClick={() => setViewMode('week')}
+              >
+                Week
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="card card-body" style={{ marginTop: 24 }}>
-        <div style={{ display: 'grid', gap: 12 }}>
-          {slots.map((slot) => {
-            const slotBookings = bookingsByTime.get(slot) || [];
+      {viewMode === 'day' ? (
+        <div className="card card-body" style={{ marginTop: 24 }}>
+          <h2>{prettyDate(selectedDate)}</h2>
 
-            return (
+          <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
+            {slots.map((slot) => {
+              const slotBookings = bookingsByTime.get(slot) || [];
+
+              return (
+                <div
+                  key={slot}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => onDropToSlot(selectedDate, slot)}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '140px 1fr',
+                    gap: 16,
+                    alignItems: 'start',
+                    padding: '12px 0',
+                    borderBottom: '1px solid #eee',
+                  }}
+                >
+                  <div>
+                    <strong>{slot}</strong>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gap: 12,
+                      minHeight: 56,
+                      borderRadius: 12,
+                      background: draggingId ? '#fcfbf8' : 'transparent',
+                    }}
+                  >
+                    {slotBookings.length === 0 ? (
+                      <div
+                        style={{
+                          minHeight: 56,
+                          border: '1px dashed #ddd',
+                          borderRadius: 12,
+                          background: '#fafafa',
+                        }}
+                      />
+                    ) : (
+                      slotBookings.map((booking) => (
+                        <BookingCard
+                          key={booking.id}
+                          booking={booking}
+                          moving={movingId === booking.id}
+                          onOpen={() => setActiveBooking(booking)}
+                          onDragStart={() => setDraggingId(booking.id)}
+                          onDragEnd={() => setDraggingId(null)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="card card-body" style={{ marginTop: 24, overflowX: 'auto' }}>
+          <h2>Week of {prettyDate(weekDates[0])}</h2>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `120px repeat(7, minmax(180px, 1fr))`,
+              gap: 8,
+              marginTop: 16,
+            }}
+          >
+            <div />
+            {weekDates.map((date) => (
               <div
-                key={slot}
+                key={date}
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '140px 1fr',
-                  gap: 16,
-                  alignItems: 'start',
-                  padding: '12px 0',
-                  borderBottom: '1px solid #eee',
+                  padding: 12,
+                  border: '1px solid #eee',
+                  borderRadius: 12,
+                  background: '#fafafa',
+                  fontWeight: 700,
                 }}
               >
-                <div>
-                  <strong>{slot}</strong>
+                {prettyDate(date)}
+              </div>
+            ))}
+
+            {slots.map((slot) => (
+              <>
+                <div
+                  key={`label-${slot}`}
+                  style={{
+                    padding: 12,
+                    fontWeight: 700,
+                    borderTop: '1px solid #f1f1f1',
+                  }}
+                >
+                  {slot}
                 </div>
 
-                <div style={{ display: 'grid', gap: 12 }}>
-                  {slotBookings.length === 0 ? (
+                {weekDates.map((date) => {
+                  const key = `${date}__${slot}`;
+                  const cellBookings = bookingsByDayAndTime.get(key) || [];
+
+                  return (
                     <div
+                      key={`${date}-${slot}`}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => onDropToSlot(date, slot)}
                       style={{
-                        minHeight: 56,
+                        minHeight: 90,
                         border: '1px dashed #ddd',
                         borderRadius: 12,
-                        background: '#fafafa',
+                        padding: 8,
+                        background: draggingId ? '#fcfbf8' : '#fff',
+                        display: 'grid',
+                        gap: 8,
                       }}
-                    />
-                  ) : (
-                    slotBookings.map((booking) => {
-                      const serviceName = Array.isArray(booking.services)
-                        ? booking.services[0]?.name
-                        : booking.services?.name;
-
-                      const variationName = Array.isArray(booking.service_variations)
-                        ? booking.service_variations[0]?.name
-                        : booking.service_variations?.name;
-
-                      const providerName = Array.isArray(booking.staff)
-                        ? booking.staff[0]?.name
-                        : booking.staff?.name;
-
-                      return (
-                        <button
+                    >
+                      {cellBookings.map((booking) => (
+                        <BookingCard
                           key={booking.id}
-                          type="button"
-                          onClick={() => setActiveBooking(booking)}
-                          style={{
-                            textAlign: 'left',
-                            padding: 14,
-                            borderRadius: 14,
-                            border: '1px solid #ddd',
-                            background: '#fff',
-                            cursor: 'pointer',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
-                          }}
-                        >
-                          <strong>{booking.client_name || 'Client'}</strong>
-                          <div style={{ marginTop: 6 }}>{serviceName || 'Service'} / {variationName || 'Variation'}</div>
-                          <div style={{ marginTop: 4, fontSize: '0.92rem', color: '#666' }}>
-                            {providerName || 'Unassigned'} · {booking.status} · {booking.payment_status}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                          booking={booking}
+                          moving={movingId === booking.id}
+                          onOpen={() => setActiveBooking(booking)}
+                          onDragStart={() => setDraggingId(booking.id)}
+                          onDragEnd={() => setDraggingId(null)}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+              </>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {activeBooking && (
         <div
@@ -274,5 +435,55 @@ export default function AdminCalendarBoard({
         </div>
       )}
     </>
+  );
+}
+
+function BookingCard({
+  booking,
+  moving,
+  onOpen,
+  onDragStart,
+  onDragEnd,
+}: {
+  booking: CalendarBooking;
+  moving: boolean;
+  onOpen: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}) {
+  const serviceName = Array.isArray(booking.services)
+    ? booking.services[0]?.name
+    : booking.services?.name;
+
+  const variationName = Array.isArray(booking.service_variations)
+    ? booking.service_variations[0]?.name
+    : booking.service_variations?.name;
+
+  const providerName = Array.isArray(booking.staff)
+    ? booking.staff[0]?.name
+    : booking.staff?.name;
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onOpen}
+      style={{
+        textAlign: 'left',
+        padding: 14,
+        borderRadius: 14,
+        border: '1px solid #ddd',
+        background: moving ? '#f3ece7' : '#fff',
+        cursor: 'grab',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+      }}
+    >
+      <strong>{booking.client_name || 'Client'}</strong>
+      <div style={{ marginTop: 6 }}>{serviceName || 'Service'} / {variationName || 'Variation'}</div>
+      <div style={{ marginTop: 4, fontSize: '0.92rem', color: '#666' }}>
+        {providerName || 'Unassigned'} · {booking.status} · {booking.payment_status}
+      </div>
+    </div>
   );
 }
