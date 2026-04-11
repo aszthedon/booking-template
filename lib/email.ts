@@ -133,6 +133,33 @@ export async function sendClientRescheduledEmail({
   });
 }
 
+export async function sendClientRefundEmail({
+  to,
+  clientName,
+  refundedAmount,
+}: {
+  to: string;
+  clientName: string;
+  refundedAmount: number;
+}) {
+  return resend.emails.send({
+    from: process.env.EMAIL_FROM!,
+    to,
+    subject: 'Your refund has been processed',
+    html: emailShell(
+      'Your refund has been processed',
+      `
+        <p>Hi ${clientName || 'there'},</p>
+        <p>Your refund has been issued successfully.</p>
+        <ul>
+          <li><strong>Refund Amount:</strong> $${refundedAmount.toFixed(2)}</li>
+        </ul>
+        <p>Please allow your payment method some time to reflect the refund.</p>
+      `
+    ),
+  });
+}
+
 export async function sendAdminBookingNotification({
   bookingId,
   clientName,
@@ -171,6 +198,44 @@ export async function sendAdminBookingNotification({
           <li><strong>Date:</strong> ${appointmentDate}</li>
           <li><strong>Time:</strong> ${appointmentTime}</li>
           <li><strong>Deposit Paid:</strong> $${amountPaid.toFixed(2)}</li>
+        </ul>
+      `
+    ),
+  });
+}
+
+export async function sendStaffBookingNotification({
+  to,
+  providerName,
+  clientName,
+  serviceName,
+  variationName,
+  appointmentDate,
+  appointmentTime,
+}: {
+  to: string;
+  providerName: string;
+  clientName: string;
+  serviceName: string;
+  variationName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+}) {
+  return resend.emails.send({
+    from: process.env.EMAIL_FROM!,
+    to,
+    subject: 'New appointment assigned to you',
+    html: emailShell(
+      'New appointment assigned',
+      `
+        <p>Hi ${providerName || 'there'},</p>
+        <p>A new appointment has been assigned to your schedule.</p>
+        <ul>
+          <li><strong>Client:</strong> ${clientName}</li>
+          <li><strong>Service:</strong> ${serviceName}</li>
+          <li><strong>Variation:</strong> ${variationName}</li>
+          <li><strong>Date:</strong> ${appointmentDate}</li>
+          <li><strong>Time:</strong> ${appointmentTime}</li>
         </ul>
       `
     ),
