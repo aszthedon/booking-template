@@ -305,3 +305,58 @@ const td: React.CSSProperties = {
   whiteSpace: 'nowrap',
   verticalAlign: 'top',
 };
+<div style={{ marginTop: 16 }}>
+  <strong>Move Booking</strong>
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, marginTop: 8 }}>
+    <input
+      type="date"
+      onChange={(e) => {
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === b.id ? { ...row, appointment_date: e.target.value } : row
+          )
+        );
+      }}
+      value={b.appointment_date || ''}
+    />
+
+    <input
+      type="text"
+      placeholder="e.g. 2:00 PM"
+      onChange={(e) => {
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === b.id ? { ...row, appointment_time: e.target.value } : row
+          )
+        );
+      }}
+      value={b.appointment_time || ''}
+    />
+
+    <button
+      className="button secondary"
+      onClick={async () => {
+        const response = await fetch('/api/admin/bookings/reschedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookingId: b.id,
+            appointment_date: b.appointment_date,
+            appointment_time: b.appointment_time,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          alert(result.error || 'Failed to move booking.');
+          return;
+        }
+
+        alert('Booking moved successfully.');
+      }}
+    >
+      Move
+    </button>
+  </div>
+</div>
