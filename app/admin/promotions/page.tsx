@@ -66,4 +66,33 @@ export default async function AdminPromotionsPage() {
                 </div>
 
                 <div className="list-row">
-                  <strong>Discount Type</strong
+                  <strong>Discount Type</strong>
+                  <span>{promo.discount_type || '—'}</span>
+                </div>
+
+                <div className="list-row">
+                  <strong>Discount Value</strong>
+                  <span>{promo.discount_value ?? 0}</span>
+                </div>
+
+                <div className="list-row">
+                  <strong>Status</strong>
+                  <span>{promo.is_active ? 'Active' : 'Inactive'}</span>
+                </div>
+
+                <div className="list-row">
+                  <strong>Created</strong>
+                  <span>
+                    {promo.created_at
+                      ? new Date(promo.created_at).toLocaleString()
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </main>
+  );
+}
