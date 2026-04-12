@@ -1,3 +1,3 @@
-RESEND_API_KEY=your_resend_api_key
-EMAIL_FROM=Bookings <onboarding@resend.dev>
-ADMIN_NOTIFICATION_EMAIL=you@example.com
+import { Resend } from 'resend';
+
+export const resend = new Resend(process.env.RESEND_API_KEY!);
