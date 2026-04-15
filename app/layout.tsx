@@ -1,6 +1,7 @@
 import './globals.css';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteHeader } from '@/components/SiteHeader';
+import { createClient } from '@/lib/supabase/server';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -8,37 +9,40 @@ export const metadata: Metadata = {
     default: 'Crown Studio',
     template: '%s | Crown Studio',
   },
-  description:
-    'Luxury booking platform for appointments, provider scheduling, deposits, and client dashboards.',
-  keywords: [
-    'booking',
-    'appointments',
-    'beauty booking',
-    'service booking',
-    'provider scheduling',
-    'client dashboard',
-  ],
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
-  openGraph: {
-    title: 'Crown Studio',
-    description:
-      'Luxury booking platform for appointments, provider scheduling, deposits, and client dashboards.',
-    url: '/',
-    siteName: 'Crown Studio',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Crown Studio',
-    description:
-      'Luxury booking platform for appointments, provider scheduling, deposits, and client dashboards.',
-  },
+  description: 'Luxury booking website template with admin-managed content.',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const supabase = await createClient();
+
+  const { data: theme } = await supabase
+    .from('theme_settings')
+    .select('*')
+    .limit(1)
+    .single();
+
+  const themeVars = {
+    '--bg': theme?.background_color || '#fffaf6',
+    '--panel': theme?.panel_color || '#ffffff',
+    '--text': theme?.text_color || '#1f1a17',
+    '--muted': theme?.muted_color || '#6c625b',
+    '--accent': theme?.primary_color || '#7b4b33',
+    '--accent-soft': theme?.accent_soft || '#f2e5dc',
+    '--border': theme?.border_color || '#e7d9cf',
+    '--shadow': theme?.shadow || '0 12px 30px rgba(50, 25, 12, 0.08)',
+    '--font-body': theme?.font_body || 'Arial, Helvetica, sans-serif',
+    '--font-heading': theme?.font_heading || 'Georgia, serif',
+    '--radius-card': theme?.border_radius || '22px',
+    '--radius-button': theme?.button_radius || '999px',
+  } as React.CSSProperties;
+
   return (
     <html lang="en">
-      <body>
+      <body style={themeVars}>
         <SiteHeader />
         {children}
         <SiteFooter />
