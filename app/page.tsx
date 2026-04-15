@@ -4,23 +4,27 @@ import { createClient } from '@/lib/supabase/server';
 export default async function HomePage() {
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from('site_content')
-    .select('title, body, json_content')
-    .eq('content_key', 'homepage_content')
-    .single();
+  const [{ data: settings }, { data: content }] = await Promise.all([
+    supabase.from('site_settings').select('*').limit(1).single(),
+    supabase
+      .from('site_content')
+      .select('title, body, json_content')
+      .eq('content_key', 'homepage_content')
+      .single(),
+  ]);
 
-  const content = data?.json_content || {};
+  const json = content?.json_content || {};
 
   return (
     <main>
       <section className="shell section">
         <div className="dashboard-grid mobile-one-col" style={{ alignItems: 'center' }}>
           <div>
-            <p className="eyebrow">{content.hero_eyebrow || 'Premium booking template'}</p>
-            <h1>{content.hero_title || 'Crown Studio'}</h1>
+            <p className="eyebrow">{json.hero_eyebrow || 'Premium booking template'}</p>
+            <h1>{json.hero_title || settings?.business_name || 'Crown Studio'}</h1>
             <p className="muted max-2xl">
-              {content.hero_text ||
+              {json.hero_text ||
+                settings?.tagline ||
                 'Luxury booking, polished branding, and a premium client experience.'}
             </p>
 
@@ -35,11 +39,31 @@ export default async function HomePage() {
           </div>
 
           <div className="card card-body">
-            <h2>{content.feature_1_title || 'Services with built-in variations'}</h2>
-            <p className="muted">
-              {content.feature_1_text ||
-                'Each service can include multiple variations, pricing tiers, durations, deposits, and add-ons.'}
-            </p>
+            {settings?.hero_image_url ? (
+              <img
+                src={settings.hero_image_url}
+                alt="Hero"
+                style={{
+                  width: '100%',
+                  height: 320,
+                  objectFit: 'cover',
+                  borderRadius: 16,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '100%',
+                  height: 320,
+                  borderRadius: 16,
+                  background: '#f4f1ed',
+                  display: 'grid',
+                  placeItems: 'center',
+                }}
+              >
+                Hero image not set
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -47,17 +71,25 @@ export default async function HomePage() {
       <section className="section shell">
         <div className="dashboard-grid">
           <div className="card card-body">
-            <h2>{content.feature_2_title || 'Admin dashboard'}</h2>
+            <h2>{json.feature_1_title || 'Services with built-in variations'}</h2>
             <p className="muted">
-              {content.feature_2_text ||
+              {json.feature_1_text ||
+                'Each service can include multiple variations, pricing tiers, durations, deposits, and add-ons.'}
+            </p>
+          </div>
+
+          <div className="card card-body">
+            <h2>{json.feature_2_title || 'Admin dashboard'}</h2>
+            <p className="muted">
+              {json.feature_2_text ||
                 'Business name, address, policies, images, services, and content are managed without editing code.'}
             </p>
           </div>
 
           <div className="card card-body">
-            <h2>{content.feature_3_title || 'Client dashboard'}</h2>
+            <h2>{json.feature_3_title || 'Client dashboard'}</h2>
             <p className="muted">
-              {content.feature_3_text ||
+              {json.feature_3_text ||
                 'Clients can rebook, pay balances, upload inspiration photos, and manage appointments in one place.'}
             </p>
           </div>
