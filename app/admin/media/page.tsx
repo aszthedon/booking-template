@@ -1,89 +1,128 @@
-import { createClient } from '@/lib/supabase/server';
+'use client';
 
-type PhotoRow = {
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+
+type Asset = {
   id: string;
-  public_url: string | null;
-  client_email: string | null;
-  created_at: string | null;
+  title: string | null;
+  public_url: string;
+  file_path: string;
 };
 
-export default async function AdminMediaPage() {
-  const supabase = await createClient();
+export default function AdminMediaPage() {
+  const supabase = createClient();
 
-  const { data, error } = await supabase
-    .from('booking_photos')
-    .select(`
-      id,
-      public_url,
-      client_email,
-      created_at
-    `)
-    .order('created_at', { ascending: false });
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [title, setTitle] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  if (error) {
-    return (
-      <main className="section shell">
-        <p className="eyebrow">Admin</p>
-        <h1>Media Library</h1>
-        <pre>{error.message}</pre>
-      </main>
-    );
+  useEffect(() => {
+    loadAssets();
+  }, []);
+
+  async function loadAssets() {
+    const { data } = await supabase
+      .from('media_assets')
+      .select('id, title, public_url, file_path')
+      .order('created_at', { ascending: false });
+
+    setAssets(data || []);
   }
 
-  const photos = (data ?? []) as PhotoRow[];
+  async function uploadAsset() {
+    if (!file) {
+      alert('Choose a file first.');
+      return;
+    }
+
+    setUploading(true);
+
+    const cleanName = file.name.replace(/\s+/g, '-').toLowerCase();
+    const filePath = `${Date.now()}-${cleanName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('site-assets')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type,
+      });
+
+    if (uploadError) {
+      setUploading(false);
+      alert(uploadError.message);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('site-assets')
+      .getPublicUrl(filePath);
+
+    const { error: insertError } = await supabase
+      .from('media_assets')
+      .insert({
+        title: title || file.name,
+        file_path: filePath,
+        public_url: publicUrlData.publicUrl,
+        asset_type: 'image',
+      });
+
+    setUploading(false);
+
+    if (insertError) {
+      alert(insertError.message);
+      return;
+    }
+
+    setTitle('');
+    setFile(null);
+    loadAssets();
+  }
 
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
       <h1>Media Library</h1>
-      <p className="muted max-2xl">
-        Review uploaded inspiration photos and media associated with bookings.
-      </p>
 
-      {photos.length === 0 ? (
-        <div className="card card-body" style={{ marginTop: 24 }}>
-          <p>No uploaded media found.</p>
+      <div className="card card-body" style={{ marginTop: 24 }}>
+        <div className="form-stack">
+          <input
+            placeholder="Asset title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+          />
+          <button className="button" onClick={uploadAsset} disabled={uploading}>
+            {uploading ? 'Uploading...' : 'Upload Image'}
+          </button>
         </div>
-      ) : (
-        <div className="dashboard-grid" style={{ marginTop: 24 }}>
-          {photos.map((photo) => (
-            <div key={photo.id} className="card card-body">
-              {photo.public_url ? (
-                <img
-                  src={photo.public_url}
-                  alt="Uploaded inspiration"
-                  style={{
-                    width: '100%',
-                    height: 220,
-                    objectFit: 'cover',
-                    borderRadius: 12,
-                    marginBottom: 12,
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: '100%',
-                    height: 220,
-                    borderRadius: 12,
-                    marginBottom: 12,
-                    background: '#f4f1ed',
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  No Preview
-                </div>
-              )}
+      </div>
 
-              <strong>{photo.client_email || 'Unknown Client'}</strong>
-              <span className="muted">
-                Uploaded: {photo.created_at ? new Date(photo.created_at).toLocaleString() : '—'}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="dashboard-grid" style={{ marginTop: 24 }}>
+        {assets.map((asset) => (
+          <div key={asset.id} className="card card-body">
+            <img
+              src={asset.public_url}
+              alt={asset.title || 'Asset'}
+              style={{
+                width: '100%',
+                height: 220,
+                objectFit: 'cover',
+                borderRadius: 12,
+                marginBottom: 12,
+              }}
+            />
+            <strong>{asset.title || 'Untitled Asset'}</strong>
+            <span className="muted">{asset.public_url}</span>
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
