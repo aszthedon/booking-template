@@ -4,32 +4,33 @@ import { createClient } from '@/lib/supabase/server';
 export async function SiteHeader() {
   const supabase = await createClient();
 
-  const { data: settings } = await supabase
-    .from('site_settings')
-    .select('business_name')
-    .limit(1)
-    .single();
-
-  const businessName = settings?.business_name || 'Crown Studio';
+  const [{ data: settings }, { data: links }] = await Promise.all([
+    supabase.from('site_settings').select('business_name').limit(1).single(),
+    supabase
+      .from('navigation_links')
+      .select('label, href')
+      .eq('location', 'header')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
+  ]);
 
   return (
     <header>
       <div className="shell topbar">
         <Link href="/" className="brand">
-          {businessName}
+          {settings?.business_name || 'Crown Studio'}
         </Link>
 
         <nav className="nav">
-          <Link href="/">Home</Link>
-          <Link href="/about">About</Link>
-          <Link href="/services">Services</Link>
-          <Link href="/gallery">Gallery</Link>
-          <Link href="/faq">FAQ</Link>
-          <Link href="/testimonials">Testimonials</Link>
-          <Link href="/contact">Contact</Link>
-          <Link href="/book" className="pill-link">
-            Book Now
-          </Link>
+          {(links || []).map((link) => (
+            <Link
+              key={`${link.location}-${link.href}-${link.label}`}
+              href={link.href}
+              className={link.label === 'Book Now' ? 'pill-link' : ''}
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
       </div>
     </header>
