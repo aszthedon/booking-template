@@ -14,32 +14,33 @@ type NavLink = {
 
 export default function AdminNavigationPage() {
   const supabase = createClient();
+
   const [links, setLinks] = useState<NavLink[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [newHref, setNewHref] = useState('');
+  const [newLocation, setNewLocation] = useState('header');
 
   useEffect(() => {
     loadLinks();
   }, []);
 
   async function loadLinks() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('navigation_links')
       .select('*')
       .order('location', { ascending: true })
       .order('sort_order', { ascending: true });
 
-    if (!error) setLinks(data || []);
+    setLinks(data || []);
   }
 
-  function updateLink(id: string, field: keyof NavLink, value: string | number | boolean) {
+  function updateField(id: string, field: keyof NavLink, value: string | number | boolean) {
     setLinks((prev) =>
       prev.map((link) => (link.id === id ? { ...link, [field]: value } : link))
     );
   }
 
   async function saveLink(link: NavLink) {
-    setSaving(true);
-
     const { error } = await supabase
       .from('navigation_links')
       .update({
@@ -51,49 +52,159 @@ export default function AdminNavigationPage() {
       })
       .eq('id', link.id);
 
-    setSaving(false);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    loadLinks();
+  }
+
+  async function addLink() {
+    if (!newLabel || !newHref) {
+      alert('Label and href are required.');
+      return;
+    }
+
+    const maxOrder =
+      Math.max(
+        0,
+        ...links
+          .filter((l) => l.location === newLocation)
+          .map((l) => l.sort_order)
+      ) + 1;
+
+    const { error } = await supabase.from('navigation_links').insert({
+      label: newLabel,
+      href: newHref,
+      location: newLocation,
+      sort_order: maxOrder,
+      is_active: true,
+      tenant_id: null,
+    });
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    alert(`Saved ${link.label}`);
+    setNewLabel('');
+    setNewHref('');
+    setNewLocation('header');
+    loadLinks();
+  }
+
+  async function deleteLink(id: string) {
+    const { error } = await supabase
+      .from('navigation_links')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    loadLinks();
+  }
+
+  function moveLink(id: string, direction: 'up' | 'down') {
+    setLinks((prev) => {
+      const sorted = [...prev];
+      const index = sorted.findIndex((item) => item.id === id);
+      if (index === -1) return prev;
+
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= sorted.length) return prev;
+
+      const current = sorted[index];
+      const target = sorted[targetIndex];
+
+      if (current.location !== target.location) return prev;
+
+      const currentOrder = current.sort_order;
+      current.sort_order = target.sort_order;
+      target.sort_order = currentOrder;
+
+      return [...sorted];
+    });
   }
 
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Navigation</h1>
+      <h1>Navigation Manager</h1>
+
+      <div className="card card-body" style={{ marginTop: 24 }}>
+        <h2>Add Link</h2>
+        <div className="form-stack">
+          <input
+            placeholder="Label"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+          />
+          <input
+            placeholder="Href"
+            value={newHref}
+            onChange={(e) => setNewHref(e.target.value)}
+          />
+          <select value={newLocation} onChange={(e) => setNewLocation(e.target.value)}>
+            <option value="header">Header</option>
+            <option value="footer">Footer</option>
+          </select>
+          <button className="button" onClick={addLink}>
+            Add Link
+          </button>
+        </div>
+      </div>
 
       <div className="page-stack" style={{ marginTop: 24 }}>
         {links.map((link) => (
           <div key={link.id} className="card card-body">
             <div className="form-stack">
-              <input value={link.label} onChange={(e) => updateLink(link.id, 'label', e.target.value)} placeholder="Label" />
-              <input value={link.href} onChange={(e) => updateLink(link.id, 'href', e.target.value)} placeholder="Href" />
-              <select value={link.location} onChange={(e) => updateLink(link.id, 'location', e.target.value)}>
+              <input
+                value={link.label}
+                onChange={(e) => updateField(link.id, 'label', e.target.value)}
+              />
+              <input
+                value={link.href}
+                onChange={(e) => updateField(link.id, 'href', e.target.value)}
+              />
+              <select
+                value={link.location}
+                onChange={(e) => updateField(link.id, 'location', e.target.value)}
+              >
                 <option value="header">Header</option>
                 <option value="footer">Footer</option>
               </select>
               <input
                 type="number"
                 value={link.sort_order}
-                onChange={(e) => updateLink(link.id, 'sort_order', Number(e.target.value))}
-                placeholder="Sort Order"
+                onChange={(e) => updateField(link.id, 'sort_order', Number(e.target.value))}
               />
               <label>
                 <input
                   type="checkbox"
                   checked={link.is_active}
-                  onChange={(e) => updateLink(link.id, 'is_active', e.target.checked)}
+                  onChange={(e) => updateField(link.id, 'is_active', e.target.checked)}
                 />{' '}
                 Active
               </label>
 
-              <button className="button" onClick={() => saveLink(link)} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Link'}
-              </button>
+              <div className="actions-row">
+                <button className="button secondary" onClick={() => moveLink(link.id, 'up')}>
+                  Move Up
+                </button>
+                <button className="button secondary" onClick={() => moveLink(link.id, 'down')}>
+                  Move Down
+                </button>
+                <button className="button" onClick={() => saveLink(link)}>
+                  Save
+                </button>
+                <button className="button secondary" onClick={() => deleteLink(link.id)}>
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         ))}
