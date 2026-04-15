@@ -1,100 +1,98 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
+type HomepageSection = {
+  id: string;
+  section_key: string;
+  title: string | null;
+  body: string | null;
+  image_url: string | null;
+  cta_label: string | null;
+  cta_href: string | null;
+  sort_order: number;
+  is_active: boolean;
+};
+
 export default async function HomePage() {
   const supabase = await createClient();
 
-  const [{ data: settings }, { data: content }] = await Promise.all([
+  const [{ data: settings }, { data: sections }] = await Promise.all([
     supabase.from('site_settings').select('*').limit(1).single(),
     supabase
-      .from('site_content')
-      .select('title, body, json_content')
-      .eq('content_key', 'homepage_content')
-      .single(),
+      .from('homepage_sections')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
   ]);
 
-  const json = content?.json_content || {};
+  const rows = (sections ?? []) as HomepageSection[];
 
   return (
     <main>
-      <section className="shell section">
-        <div className="dashboard-grid mobile-one-col" style={{ alignItems: 'center' }}>
-          <div>
-            <p className="eyebrow">{json.hero_eyebrow || 'Premium booking template'}</p>
-            <h1>{json.hero_title || settings?.business_name || 'Crown Studio'}</h1>
-            <p className="muted max-2xl">
-              {json.hero_text ||
-                settings?.tagline ||
-                'Luxury booking, polished branding, and a premium client experience.'}
-            </p>
+      {rows.map((section, index) => {
+        const isHero = index === 0;
 
-            <div className="actions-row" style={{ marginTop: 24 }}>
-              <Link href="/book" className="button">
-                Book Now
-              </Link>
-              <Link href="/services" className="button secondary">
-                View Services
-              </Link>
-            </div>
-          </div>
+        return (
+          <section key={section.id} className="section shell">
+            <div className="dashboard-grid mobile-one-col" style={{ alignItems: 'center' }}>
+              <div>
+                {isHero ? <p className="eyebrow">Welcome</p> : null}
+                <h1>{section.title || settings?.business_name || 'Crown Studio'}</h1>
+                <p className="muted max-2xl">
+                  {section.body || settings?.tagline || 'Luxury booking website'}
+                </p>
 
-          <div className="card card-body">
-            {settings?.hero_image_url ? (
-              <img
-                src={settings.hero_image_url}
-                alt="Hero"
-                style={{
-                  width: '100%',
-                  height: 320,
-                  objectFit: 'cover',
-                  borderRadius: 16,
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: '100%',
-                  height: 320,
-                  borderRadius: 16,
-                  background: '#f4f1ed',
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
-                Hero image not set
+                {section.cta_label && section.cta_href ? (
+                  <div className="actions-row" style={{ marginTop: 24 }}>
+                    <Link href={section.cta_href} className="button">
+                      {section.cta_label}
+                    </Link>
+                  </div>
+                ) : null}
               </div>
-            )}
-          </div>
-        </div>
-      </section>
 
-      <section className="section shell">
-        <div className="dashboard-grid">
-          <div className="card card-body">
-            <h2>{json.feature_1_title || 'Services with built-in variations'}</h2>
-            <p className="muted">
-              {json.feature_1_text ||
-                'Each service can include multiple variations, pricing tiers, durations, deposits, and add-ons.'}
-            </p>
-          </div>
-
-          <div className="card card-body">
-            <h2>{json.feature_2_title || 'Admin dashboard'}</h2>
-            <p className="muted">
-              {json.feature_2_text ||
-                'Business name, address, policies, images, services, and content are managed without editing code.'}
-            </p>
-          </div>
-
-          <div className="card card-body">
-            <h2>{json.feature_3_title || 'Client dashboard'}</h2>
-            <p className="muted">
-              {json.feature_3_text ||
-                'Clients can rebook, pay balances, upload inspiration photos, and manage appointments in one place.'}
-            </p>
-          </div>
-        </div>
-      </section>
+              <div className="card card-body">
+                {section.image_url ? (
+                  <img
+                    src={section.image_url}
+                    alt={section.title || 'Homepage section image'}
+                    style={{
+                      width: '100%',
+                      height: 320,
+                      objectFit: 'cover',
+                      borderRadius: 16,
+                    }}
+                  />
+                ) : isHero && settings?.hero_image_url ? (
+                  <img
+                    src={settings.hero_image_url}
+                    alt="Hero"
+                    style={{
+                      width: '100%',
+                      height: 320,
+                      objectFit: 'cover',
+                      borderRadius: 16,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 320,
+                      borderRadius: 16,
+                      background: '#f4f1ed',
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    No image set
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        );
+      })}
     </main>
   );
 }
