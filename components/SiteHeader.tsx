@@ -6,9 +6,14 @@ export async function SiteHeader() {
   const supabase = await createClient();
 
   let businessName = 'Booking Template';
-  let links: { label: string; href: string }[] = [
+
+  let links = [
     { label: 'Home', href: '/' },
     { label: 'Services', href: '/services' },
+    { label: 'Gallery', href: '/gallery' },
+    { label: 'About', href: '/about' },
+    { label: 'FAQ', href: '/faq' },
+    { label: 'Contact', href: '/contact' },
     { label: 'Book Now', href: '/book' },
   ];
 
@@ -16,8 +21,6 @@ export async function SiteHeader() {
     const tenant = await getCurrentTenant();
 
     if (tenant?.id) {
-      businessName = tenant.name || businessName;
-
       const [{ data: settings }, { data: navLinks }] = await Promise.all([
         supabase
           .from('site_settings')
@@ -25,6 +28,7 @@ export async function SiteHeader() {
           .eq('tenant_id', tenant.id)
           .limit(1)
           .maybeSingle(),
+
         supabase
           .from('navigation_links')
           .select('label, href')
@@ -34,31 +38,45 @@ export async function SiteHeader() {
           .order('sort_order', { ascending: true }),
       ]);
 
-      businessName = settings?.business_name || businessName;
-      links = navLinks?.length ? navLinks : links;
+      businessName = settings?.business_name || tenant.name || businessName;
+
+      if (navLinks?.length) {
+        links = navLinks;
+      }
     }
   } catch {
-    // Keep fallback header
+    // fallback nav stays active
   }
 
   return (
-    <header>
-      <div className="shell topbar">
-        <Link href="/" className="brand">
+    <header className="lux-header">
+      <div className="shell lux-nav-shell">
+        <Link href="/" className="lux-brand">
           {businessName}
         </Link>
 
-        <nav className="nav">
+        <nav className="lux-nav-links">
           {links.map((link) => (
             <Link
               key={`${link.href}-${link.label}`}
               href={link.href}
-              className={link.label === 'Book Now' ? 'pill-link' : ''}
+              className={link.label.toLowerCase().includes('book') ? 'lux-nav-cta' : 'lux-nav-link'}
             >
               {link.label}
             </Link>
           ))}
         </nav>
+
+        <div className="portal-menu">
+          <span className="portal-trigger">Portals</span>
+
+          <div className="portal-dropdown">
+            <Link href="/login">Login</Link>
+            <Link href="/client/appointments">Client</Link>
+            <Link href="/staff">Staff</Link>
+            <Link href="/admin">Admin</Link>
+          </div>
+        </div>
       </div>
     </header>
   );
