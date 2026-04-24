@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 
 type PromotionRow = {
   id: string;
@@ -13,6 +14,7 @@ type PromotionRow = {
 
 export default async function AdminPromotionsPage() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const { data, error } = await supabase
     .from('promotions')
@@ -26,12 +28,12 @@ export default async function AdminPromotionsPage() {
       is_active,
       created_at
     `)
+    .eq('tenant_id', tenant.id)
     .order('created_at', { ascending: false });
 
   if (error) {
     return (
       <main className="section shell">
-        <p className="eyebrow">Admin</p>
         <h1>Promotions</h1>
         <pre>{error.message}</pre>
       </main>
@@ -43,10 +45,7 @@ export default async function AdminPromotionsPage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Promotions</h1>
-      <p className="muted max-2xl">
-        Manage discount codes, marketing offers, and limited-time booking promotions.
-      </p>
+      <h1>{tenant.name} Promotions</h1>
 
       {promotions.length === 0 ? (
         <div className="card card-body" style={{ marginTop: 24 }}>
@@ -64,29 +63,17 @@ export default async function AdminPromotionsPage() {
                   <strong>Code</strong>
                   <span>{promo.code || '—'}</span>
                 </div>
-
                 <div className="list-row">
                   <strong>Discount Type</strong>
                   <span>{promo.discount_type || '—'}</span>
                 </div>
-
                 <div className="list-row">
                   <strong>Discount Value</strong>
                   <span>{promo.discount_value ?? 0}</span>
                 </div>
-
                 <div className="list-row">
                   <strong>Status</strong>
                   <span>{promo.is_active ? 'Active' : 'Inactive'}</span>
-                </div>
-
-                <div className="list-row">
-                  <strong>Created</strong>
-                  <span>
-                    {promo.created_at
-                      ? new Date(promo.created_at).toLocaleString()
-                      : '—'}
-                  </span>
                 </div>
               </div>
             </div>
