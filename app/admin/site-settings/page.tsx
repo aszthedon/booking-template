@@ -3,8 +3,14 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+type Tenant = {
+  id: string;
+  name: string;
+};
+
 type SiteSettings = {
   id: string;
+  tenant_id: string | null;
   business_name: string | null;
   tagline: string | null;
   support_email: string | null;
@@ -20,6 +26,7 @@ type SiteSettings = {
 
 export default function AdminSiteSettingsPage() {
   const supabase = createClient();
+  const [tenant, setTenant] = useState<Tenant | null>(null);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -28,9 +35,20 @@ export default function AdminSiteSettingsPage() {
   }, []);
 
   async function loadSettings() {
+    const tenantRes = await fetch('/api/admin/current-tenant');
+    const tenantJson = await tenantRes.json();
+
+    if (!tenantRes.ok) {
+      alert(tenantJson.error || 'Failed to load tenant.');
+      return;
+    }
+
+    setTenant(tenantJson.tenant);
+
     const { data, error } = await supabase
       .from('site_settings')
       .select('*')
+      .eq('tenant_id', tenantJson.tenant.id)
       .limit(1)
       .single();
 
@@ -86,7 +104,7 @@ export default function AdminSiteSettingsPage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Site Settings</h1>
+      <h1>{tenant?.name || 'Brand'} Site Settings</h1>
 
       <div className="card card-body" style={{ marginTop: 24 }}>
         <div className="form-stack">
