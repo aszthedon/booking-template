@@ -3,8 +3,14 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+type Tenant = {
+  id: string;
+  name: string;
+};
+
 type ContentRow = {
   id: string;
+  tenant_id: string | null;
   content_key: string;
   title: string | null;
   body: string | null;
@@ -13,17 +19,29 @@ type ContentRow = {
 
 export default function AdminContentPage() {
   const supabase = createClient();
+  const [tenant, setTenant] = useState<Tenant | null>(null);
   const [rows, setRows] = useState<ContentRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadContent();
+    loadTenantAndContent();
   }, []);
 
-  async function loadContent() {
+  async function loadTenantAndContent() {
+    const tenantRes = await fetch('/api/admin/current-tenant');
+    const tenantJson = await tenantRes.json();
+
+    if (!tenantRes.ok) {
+      alert(tenantJson.error || 'Failed to load tenant.');
+      return;
+    }
+
+    setTenant(tenantJson.tenant);
+
     const { data, error } = await supabase
       .from('site_content')
-      .select('id, content_key, title, body, json_content')
+      .select('id, tenant_id, content_key, title, body, json_content')
+      .eq('tenant_id', tenantJson.tenant.id)
       .order('content_key', { ascending: true });
 
     if (!error) setRows(data || []);
@@ -61,7 +79,7 @@ export default function AdminContentPage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Content Manager</h1>
+      <h1>{tenant?.name || 'Brand'} Content Manager</h1>
 
       <div className="page-stack" style={{ marginTop: 24 }}>
         {rows.map((row) => (
