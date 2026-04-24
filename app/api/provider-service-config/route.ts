@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getCurrentTenant } from '@/lib/tenant';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -15,10 +16,12 @@ export async function GET(req: Request) {
   }
 
   const supabase = createAdminClient();
+  const tenant = await getCurrentTenant();
 
   const { data: variation, error: variationError } = await supabase
     .from('service_variations')
     .select('duration_minutes, buffer_minutes')
+    .eq('tenant_id', tenant.id)
     .eq('id', variationId)
     .single();
 
@@ -32,18 +35,15 @@ export async function GET(req: Request) {
   const { data: override } = await supabase
     .from('staff_services')
     .select('duration_override_minutes, buffer_override_minutes')
+    .eq('tenant_id', tenant.id)
     .eq('staff_id', providerId)
     .eq('service_id', serviceId)
     .maybeSingle();
 
-  const effectiveDuration =
-    override?.duration_override_minutes ?? variation.duration_minutes ?? 30;
-
-  const effectiveBuffer =
-    override?.buffer_override_minutes ?? variation.buffer_minutes ?? 0;
-
   return NextResponse.json({
-    duration_minutes: effectiveDuration,
-    buffer_minutes: effectiveBuffer,
+    duration_minutes:
+      override?.duration_override_minutes ?? variation.duration_minutes ?? 30,
+    buffer_minutes:
+      override?.buffer_override_minutes ?? variation.buffer_minutes ?? 0,
   });
 }
