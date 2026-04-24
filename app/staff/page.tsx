@@ -1,20 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 import { redirect } from 'next/navigation';
 import StaffScheduleManager from '@/components/StaffScheduleManager';
 
-type StaffBooking = {
-  id: string;
-  client_name: string | null;
-  appointment_date: string | null;
-  appointment_time: string | null;
-  status: string | null;
-  payment_status: string | null;
-  services: { name: string | null } | null;
-  service_variations: { name: string | null } | null;
-};
-
 export default async function StaffDashboardPage() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const {
     data: { user },
@@ -27,6 +18,7 @@ export default async function StaffDashboardPage() {
   const { data: staffMember, error: staffError } = await supabase
     .from('staff')
     .select('id, name, email')
+    .eq('tenant_id', tenant.id)
     .eq('email', user.email)
     .single();
 
@@ -35,7 +27,7 @@ export default async function StaffDashboardPage() {
       <main className="section shell">
         <p className="eyebrow">Staff</p>
         <h1>My Schedule</h1>
-        <p>No staff profile was found for this login.</p>
+        <p>No staff profile was found for this brand.</p>
       </main>
     );
   }
@@ -52,6 +44,7 @@ export default async function StaffDashboardPage() {
       services ( name ),
       service_variations ( name )
     `)
+    .eq('tenant_id', tenant.id)
     .eq('staff_id', staffMember.id)
     .in('status', ['pending', 'confirmed', 'completed'])
     .order('appointment_date', { ascending: true })
@@ -67,13 +60,11 @@ export default async function StaffDashboardPage() {
     );
   }
 
-  const bookings = (data ?? []) as StaffBooking[];
-
   return (
     <main className="section shell">
       <p className="eyebrow">Staff Dashboard</p>
       <h1>{staffMember.name}&apos;s Schedule</h1>
-      <StaffScheduleManager bookings={bookings} />
+      <StaffScheduleManager bookings={data || []} />
     </main>
   );
 }
