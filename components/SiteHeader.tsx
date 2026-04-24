@@ -2,20 +2,22 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentTenant } from '@/lib/tenant';
 
+const defaultLinks = [
+  { label: 'Home', href: '/' },
+  { label: 'Services', href: '/services' },
+  { label: 'Gallery', href: '/gallery' },
+  { label: 'About', href: '/about' },
+  { label: 'FAQ', href: '/faq' },
+  { label: 'Policies', href: '/policies' },
+  { label: 'Contact', href: '/contact' },
+  { label: 'Book Now', href: '/book' },
+];
+
 export async function SiteHeader() {
   const supabase = await createClient();
 
   let businessName = 'Booking Template';
-
-  let links = [
-    { label: 'Home', href: '/' },
-    { label: 'Services', href: '/services' },
-    { label: 'Gallery', href: '/gallery' },
-    { label: 'About', href: '/about' },
-    { label: 'FAQ', href: '/faq' },
-    { label: 'Contact', href: '/contact' },
-    { label: 'Book Now', href: '/book' },
-  ];
+  let links = defaultLinks;
 
   try {
     const tenant = await getCurrentTenant();
@@ -28,7 +30,6 @@ export async function SiteHeader() {
           .eq('tenant_id', tenant.id)
           .limit(1)
           .maybeSingle(),
-
         supabase
           .from('navigation_links')
           .select('label, href')
@@ -40,12 +41,11 @@ export async function SiteHeader() {
 
       businessName = settings?.business_name || tenant.name || businessName;
 
-      if (navLinks?.length) {
-        links = navLinks;
-      }
+      const merged = [...(navLinks || []), ...defaultLinks];
+      links = Array.from(new Map(merged.map((link) => [link.href, link])).values());
     }
   } catch {
-    // fallback nav stays active
+    links = defaultLinks;
   }
 
   return (
