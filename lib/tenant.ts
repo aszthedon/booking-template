@@ -16,21 +16,29 @@ export async function getCurrentTenant() {
       .eq('is_active', true)
       .maybeSingle();
 
-    if (domainTenant) return domainTenant;
+    if (domainTenant) {
+      return domainTenant;
+    }
   }
 
   const defaultSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG || 'default';
 
-  const { data: fallbackTenant } = await supabase
+  const { data: fallbackTenant, error } = await supabase
     .from('tenants')
     .select('*')
     .eq('slug', defaultSlug)
     .eq('is_active', true)
     .maybeSingle();
 
-  if (fallbackTenant) return fallbackTenant;
+  if (error) {
+    throw new Error(`Tenant lookup failed: ${error.message}`);
+  }
 
-  throw new Error(
-    `No active tenant found. Create a tenant with slug "${defaultSlug}" in public.tenants.`
-  );
+  if (!fallbackTenant) {
+    throw new Error(
+      `No active tenant found. Create one in public.tenants with slug "${defaultSlug}".`
+    );
+  }
+
+  return fallbackTenant;
 }
