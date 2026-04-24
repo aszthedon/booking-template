@@ -1,11 +1,14 @@
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 
 export default async function AdminAnalyticsPage() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('status, payment_status, amount_due, amount_paid');
+    .select('status, payment_status, amount_due, amount_paid')
+    .eq('tenant_id', tenant.id);
 
   const rows = bookings || [];
 
@@ -22,21 +25,24 @@ export default async function AdminAnalyticsPage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Analytics</h1>
+      <h1>{tenant.name} Analytics</h1>
 
       <div className="stats-grid" style={{ marginTop: 24 }}>
         <div className="card card-body">
           <p className="eyebrow">Total Bookings</p>
           <h2>{totalBookings}</h2>
         </div>
+
         <div className="card card-body">
           <p className="eyebrow">Confirmed</p>
           <h2>{confirmedBookings}</h2>
         </div>
+
         <div className="card card-body">
           <p className="eyebrow">Cancelled</p>
           <h2>{cancelledBookings}</h2>
         </div>
+
         <div className="card card-body">
           <p className="eyebrow">Paid</p>
           <h2>{paidBookings}</h2>
