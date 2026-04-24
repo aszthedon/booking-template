@@ -1,16 +1,18 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { headers } from 'next/headers';
 
 export async function getCurrentTenant() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const headerStore = await headers();
   const host = headerStore.get('host');
 
   if (host) {
+    const cleanHost = host.replace('www.', '').split(':')[0];
+
     const { data: domainTenant } = await supabase
       .from('tenants')
       .select('*')
-      .eq('custom_domain', host)
+      .eq('custom_domain', cleanHost)
       .eq('is_active', true)
       .maybeSingle();
 
@@ -24,7 +26,11 @@ export async function getCurrentTenant() {
     .select('*')
     .eq('slug', defaultSlug)
     .eq('is_active', true)
-    .single();
+    .maybeSingle();
 
-  return fallbackTenant;
+  if (fallbackTenant) return fallbackTenant;
+
+  throw new Error(
+    `No active tenant found. Create a tenant with slug "${defaultSlug}" in public.tenants.`
+  );
 }
