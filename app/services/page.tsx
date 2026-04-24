@@ -1,101 +1,84 @@
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 
-type Variation = {
+type ServiceRow = {
   id: string;
-  name: string;
-  price: number;
-  duration_minutes: number;
-  deposit_type: 'flat' | 'percent';
-  deposit_value: number;
-};
-
-type Service = {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  short_description: string | null;
-  full_description: string | null;
+  name: string | null;
+  description: string | null;
   image_url: string | null;
-  service_variations: Variation[];
 };
 
 export default async function ServicesPage() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
-  const { data: services, error } = await supabase
+  const { data, error } = await supabase
     .from('services')
     .select(`
       id,
       name,
-      slug,
-      category,
-      short_description,
-      full_description,
-      image_url,
-      service_variations (
-        id,
-        name,
-        price,
-        duration_minutes,
-        deposit_type,
-        deposit_value
-      )
+      description,
+      image_url
     `)
+    .eq('tenant_id', tenant.id)
     .eq('is_active', true)
-    .order('created_at', { ascending: true });
+    .order('name', { ascending: true });
 
   if (error) {
     return (
       <main className="section shell">
+        <p className="eyebrow">Services</p>
         <h1>Services</h1>
-        <p>Failed to load services.</p>
         <pre>{error.message}</pre>
       </main>
     );
   }
 
+  const services = (data ?? []) as ServiceRow[];
+
   return (
     <main className="section shell">
       <p className="eyebrow">Services</p>
-      <h1>Live services from Supabase</h1>
+      <h1>{tenant.name} Services</h1>
       <p className="muted max-2xl">
-        This page is now database-driven instead of using mock template data.
+        Browse available services and book the experience that fits your needs.
       </p>
 
-      <div className="grid grid-2" style={{ marginTop: 24 }}>
-        {(services as Service[] | null)?.map((service) => (
-          <article key={service.id} className="card">
-            {service.image_url ? (
-              <img src={service.image_url} alt={service.name} className="card-image" />
-            ) : null}
+      {services.length === 0 ? (
+        <div className="card card-body" style={{ marginTop: 24 }}>
+          <p>No services available yet.</p>
+        </div>
+      ) : (
+        <div className="dashboard-grid" style={{ marginTop: 24 }}>
+          {services.map((service) => (
+            <div key={service.id} className="card card-body">
+              {service.image_url ? (
+                <img
+                  src={service.image_url}
+                  alt={service.name || 'Service'}
+                  style={{
+                    width: '100%',
+                    height: 220,
+                    objectFit: 'cover',
+                    borderRadius: 12,
+                    marginBottom: 12,
+                  }}
+                />
+              ) : null}
 
-            <div className="card-body">
-              <p className="eyebrow">{service.category}</p>
-              <h2>{service.name}</h2>
-              <p className="muted">{service.short_description}</p>
+              <h2>{service.name || 'Untitled Service'}</h2>
+              <p className="muted">{service.description || 'No description available.'}</p>
 
-              <div style={{ marginTop: 16 }}>
-                <h3>Variations</h3>
-                {service.service_variations?.length ? (
-                  <ul>
-                    {service.service_variations.map((variation) => (
-                      <li key={variation.id}>
-                        <strong>{variation.name}</strong> — ${variation.price} — {variation.duration_minutes} min — deposit{' '}
-                        {variation.deposit_type === 'flat'
-                          ? `$${variation.deposit_value}`
-                          : `${variation.deposit_value}%`}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="muted">No variations yet.</p>
-                )}
+              <div className="actions-row" style={{ marginTop: 16 }}>
+                <Link href="/book" className="button">
+                  Book This Service
+                </Link>
               </div>
             </div>
-          </article>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }
