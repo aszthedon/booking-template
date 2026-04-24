@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 
 type PaymentRow = {
   id: string;
@@ -12,6 +13,7 @@ type PaymentRow = {
 
 export default async function AdminPaymentsPage() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const { data, error } = await supabase
     .from('bookings')
@@ -24,12 +26,12 @@ export default async function AdminPaymentsPage() {
       amount_paid,
       refund_status
     `)
+    .eq('tenant_id', tenant.id)
     .order('created_at', { ascending: false });
 
   if (error) {
     return (
       <main className="section shell">
-        <p className="eyebrow">Admin</p>
         <h1>Payments</h1>
         <pre>{error.message}</pre>
       </main>
@@ -41,7 +43,7 @@ export default async function AdminPaymentsPage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Payments</h1>
+      <h1>{tenant.name} Payments</h1>
 
       <div className="card card-body" style={{ marginTop: 24 }}>
         {rows.length === 0 ? (
