@@ -6,11 +6,15 @@ export const adminNav = [
   { href: '/admin/payments', label: 'Payments' },
   { href: '/admin/refunds', label: 'Refunds' },
   { href: '/admin/analytics', label: 'Analytics' },
+  { href: '/admin/reports', label: 'Reports' },
+
   { href: '/admin/services', label: 'Services' },
   { href: '/admin/providers', label: 'Providers' },
   { href: '/admin/provider-hours', label: 'Provider Hours' },
   { href: '/admin/provider-services', label: 'Provider Services' },
   { href: '/admin/promotions', label: 'Promotions' },
+  { href: '/admin/staff', label: 'Staff' },
+
   { href: '/admin/media', label: 'Media' },
   { href: '/admin/content', label: 'Content' },
   { href: '/admin/homepage', label: 'Homepage' },
@@ -20,8 +24,6 @@ export const adminNav = [
   { href: '/admin/theme-presets', label: 'Theme Presets' },
   { href: '/admin/brand-kits', label: 'Brand Kits' },
   { href: '/admin/onboarding', label: 'Onboarding' },
-  { href: '/admin/reports', label: 'Reports' },
-  { href: '/admin/staff', label: 'Staff' },
 ];
 
 export const clientNav = [
