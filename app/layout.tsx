@@ -6,29 +6,35 @@ import { getCurrentTenant } from '@/lib/tenant';
 import type { Metadata } from 'next';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const supabase = await createClient();
-  const tenant = await getCurrentTenant();
+  let businessName = 'Booking Template';
+  let description = 'Luxury booking website template with admin-managed content.';
 
-  const [{ data: settings }, { data: homeContent }] = await Promise.all([
-    supabase
-      .from('site_settings')
-      .select('business_name, tagline')
-      .eq('tenant_id', tenant.id)
-      .limit(1)
-      .single(),
-    supabase
-      .from('site_content')
-      .select('title, body')
-      .eq('tenant_id', tenant.id)
-      .eq('content_key', 'homepage_content')
-      .maybeSingle(),
-  ]);
+  try {
+    const supabase = await createClient();
+    const tenant = await getCurrentTenant();
 
-  const businessName = settings?.business_name || tenant.name || 'Booking Template';
-  const description =
-    homeContent?.body ||
-    settings?.tagline ||
-    'Luxury booking website template with admin-managed content.';
+    if (tenant?.id) {
+      const [{ data: settings }, { data: homeContent }] = await Promise.all([
+        supabase
+          .from('site_settings')
+          .select('business_name, tagline')
+          .eq('tenant_id', tenant.id)
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('site_content')
+          .select('title, body')
+          .eq('tenant_id', tenant.id)
+          .eq('content_key', 'homepage_content')
+          .maybeSingle(),
+      ]);
+
+      businessName = settings?.business_name || tenant.name || businessName;
+      description = homeContent?.body || settings?.tagline || description;
+    }
+  } catch {
+    // Keep fallback metadata
+  }
 
   return {
     title: {
@@ -45,18 +51,25 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const tenant = await getCurrentTenant();
 
-  if (!tenant) {
-    throw new Error('No tenant returned from getCurrentTenant(). Check public.tenants and NEXT_PUBLIC_DEFAULT_TENANT_SLUG.');
+  let theme: any = null;
+
+  try {
+    const tenant = await getCurrentTenant();
+
+    if (tenant?.id) {
+      const { data } = await supabase
+        .from('theme_settings')
+        .select('*')
+        .eq('tenant_id', tenant.id)
+        .limit(1)
+        .maybeSingle();
+
+      theme = data;
+    }
+  } catch {
+    theme = null;
   }
-
-  const { data: theme } = await supabase
-    .from('theme_settings')
-    .select('*')
-    .eq('tenant_id', tenant.id)
-    .limit(1)
-    .maybeSingle();
 
   const themeVars = {
     '--bg': theme?.background_color || '#fffaf6',
