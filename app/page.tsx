@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 
 type HomepageSection = {
   id: string;
-  section_key: string;
   title: string | null;
   body: string | null;
   image_url: string | null;
@@ -15,12 +15,19 @@ type HomepageSection = {
 
 export default async function HomePage() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const [{ data: settings }, { data: sections }] = await Promise.all([
-    supabase.from('site_settings').select('*').limit(1).single(),
+    supabase
+      .from('site_settings')
+      .select('*')
+      .eq('tenant_id', tenant.id)
+      .limit(1)
+      .single(),
     supabase
       .from('homepage_sections')
       .select('*')
+      .eq('tenant_id', tenant.id)
       .eq('is_active', true)
       .order('sort_order', { ascending: true }),
   ]);
@@ -37,7 +44,7 @@ export default async function HomePage() {
             <div className="dashboard-grid mobile-one-col" style={{ alignItems: 'center' }}>
               <div>
                 {isHero ? <p className="eyebrow">Welcome</p> : null}
-                <h1>{section.title || settings?.business_name || 'Crown Studio'}</h1>
+                <h1>{section.title || settings?.business_name || tenant.name || 'Booking Template'}</h1>
                 <p className="muted max-2xl">
                   {section.body || settings?.tagline || 'Luxury booking website'}
                 </p>
