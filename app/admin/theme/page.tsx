@@ -97,11 +97,11 @@ export default function AdminThemePage() {
           <input value={theme.panel_color || ''} onChange={(e) => updateField('panel_color', e.target.value)} placeholder="Panel Color" />
           <input value={theme.text_color || ''} onChange={(e) => updateField('text_color', e.target.value)} placeholder="Text Color" />
           <input value={theme.muted_color || ''} onChange={(e) => updateField('muted_color', e.target.value)} placeholder="Muted Color" />
-          <input value={theme.accent_soft || ''} onChange={(e) => updateField('accent_soft', e.target.value)} placeholder="Soft Accent Color" />
+          <input value={theme.accent_soft || ''} onChange={(e) => updateField('accent_soft', e.target.value)} placeholder="Soft Accent" />
           <input value={theme.border_color || ''} onChange={(e) => updateField('border_color', e.target.value)} placeholder="Border Color" />
           <input value={theme.shadow || ''} onChange={(e) => updateField('shadow', e.target.value)} placeholder="Shadow CSS" />
-          <input value={theme.font_body || ''} onChange={(e) => updateField('font_body', e.target.value)} placeholder="Body Font Stack" />
-          <input value={theme.font_heading || ''} onChange={(e) => updateField('font_heading', e.target.value)} placeholder="Heading Font Stack" />
+          <input value={theme.font_body || ''} onChange={(e) => updateField('font_body', e.target.value)} placeholder="Body Font" />
+          <input value={theme.font_heading || ''} onChange={(e) => updateField('font_heading', e.target.value)} placeholder="Heading Font" />
           <input value={theme.border_radius || ''} onChange={(e) => updateField('border_radius', e.target.value)} placeholder="Card Radius" />
           <input value={theme.button_radius || ''} onChange={(e) => updateField('button_radius', e.target.value)} placeholder="Button Radius" />
 
