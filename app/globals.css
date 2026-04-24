@@ -7,6 +7,12 @@
   --accent-soft: #f2e5dc;
   --border: #e7d9cf;
   --shadow: 0 12px 30px rgba(50, 25, 12, 0.08);
+
+  --font-body: Arial, Helvetica, sans-serif;
+  --font-heading: Georgia, serif;
+
+  --radius-card: 22px;
+  --radius-button: 999px;
 }
 
 * {
@@ -17,7 +23,7 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
 }
@@ -80,6 +86,12 @@ img {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
 /* Flex helpers */
 .row {
   display: flex;
@@ -96,7 +108,27 @@ img {
   flex-wrap: wrap;
 }
 
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 0;
+  gap: 16px;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+
 /* Typography */
+.brand {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
 .muted {
   color: var(--muted);
   line-height: 1.6;
@@ -104,6 +136,10 @@ img {
 
 .small {
   font-size: 0.9rem;
+}
+
+.max-2xl {
+  max-width: 720px;
 }
 
 .eyebrow {
@@ -114,23 +150,48 @@ img {
   font-weight: 700;
 }
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--text);
+  font-family: var(--font-heading);
+}
+
+h1 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+h2 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
 /* Buttons */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 12px 18px;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   background: var(--accent);
   color: white;
   border: 1px solid var(--accent);
   font-weight: 700;
   cursor: pointer;
+  transition: 0.2s ease;
 }
 
-.button.secondary {
-  background: transparent;
-  color: var(--accent);
+.button:hover {
+  opacity: 0.92;
 }
 
 .button:disabled {
@@ -138,16 +199,34 @@ img {
   cursor: not-allowed;
 }
 
+.button.secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+.pill-link {
+  padding: 10px 14px;
+  border-radius: var(--radius-button);
+  background: var(--accent-soft);
+}
+
 /* Cards */
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 22px;
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
 .card-body {
   padding: 20px;
+}
+
+.card-image {
+  height: 250px;
+  width: 100%;
+  object-fit: cover;
 }
 
 /* Forms */
@@ -160,10 +239,12 @@ textarea {
   border: 1px solid var(--border);
   background: white;
   font: inherit;
+  color: inherit;
 }
 
 textarea {
   min-height: 120px;
+  resize: vertical;
 }
 
 label {
@@ -200,7 +281,8 @@ label {
 }
 
 /* Tables */
-.table-wrap {
+.table-wrap,
+.calendar-scroll {
   overflow-x: auto;
 }
 
@@ -237,10 +319,39 @@ td {
   padding: 28px;
 }
 
-.stats-grid {
+.dashboard-nav {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.dashboard-nav a,
+aside nav a {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 12px;
+  transition: 0.2s ease;
+}
+
+.dashboard-nav a:hover,
+aside nav a:hover {
+  background: var(--accent-soft);
+}
+
+.calendar-card {
+  width: 100%;
+}
+
+/* Footer / hero helpers */
+.hero h1 {
+  font-size: clamp(2.2rem, 6vw, 4.2rem);
+  line-height: 1.02;
+}
+
+.footer {
+  padding: 40px 0 60px;
+  border-top: 1px solid var(--border);
+  margin-top: 40px;
 }
 
 /* Responsive */
@@ -249,8 +360,7 @@ td {
   .grid-3,
   .dashboard-grid,
   .form-grid,
-  .mobile-one-col,
-  .stats-grid {
+  .mobile-one-col {
     grid-template-columns: 1fr !important;
   }
 
@@ -260,9 +370,15 @@ td {
 
   .dashboard-sidebar {
     width: 100%;
+    min-height: auto;
     height: auto;
     border-right: 0;
     border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
   }
 
   .actions-row {
@@ -273,18 +389,36 @@ td {
     width: 100%;
   }
 
+  .card-body {
+    padding: 16px;
+  }
+
   table {
     min-width: 720px;
+  }
+
+  .button,
+  .button.secondary {
+    width: 100%;
+    justify-content: center;
   }
 }
 
 @media (max-width: 640px) {
+  .shell {
+    width: min(100% - 20px, 1120px);
+  }
+
   .section {
     padding: 40px 0;
   }
 
-  .card-body {
-    padding: 16px;
+  .hero h1 {
+    font-size: 2rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 
   th,
