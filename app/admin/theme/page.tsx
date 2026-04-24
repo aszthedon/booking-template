@@ -3,8 +3,14 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+type Tenant = {
+  id: string;
+  name: string;
+};
+
 type ThemeSettings = {
   id: string;
+  tenant_id: string | null;
   primary_color: string | null;
   background_color: string | null;
   panel_color: string | null;
@@ -21,6 +27,7 @@ type ThemeSettings = {
 
 export default function AdminThemePage() {
   const supabase = createClient();
+  const [tenant, setTenant] = useState<Tenant | null>(null);
   const [theme, setTheme] = useState<ThemeSettings | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -29,9 +36,20 @@ export default function AdminThemePage() {
   }, []);
 
   async function loadTheme() {
+    const tenantRes = await fetch('/api/admin/current-tenant');
+    const tenantJson = await tenantRes.json();
+
+    if (!tenantRes.ok) {
+      alert(tenantJson.error || 'Failed to load tenant.');
+      return;
+    }
+
+    setTenant(tenantJson.tenant);
+
     const { data, error } = await supabase
       .from('theme_settings')
       .select('*')
+      .eq('tenant_id', tenantJson.tenant.id)
       .limit(1)
       .single();
 
@@ -88,7 +106,7 @@ export default function AdminThemePage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Theme Settings</h1>
+      <h1>{tenant?.name || 'Brand'} Theme Settings</h1>
 
       <div className="card card-body" style={{ marginTop: 24 }}>
         <div className="form-stack">
