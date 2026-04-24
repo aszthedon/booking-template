@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 
 type ClientBooking = {
   id: string;
@@ -12,6 +13,7 @@ type ClientBooking = {
 
 export default async function AdminClientsPage() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const { data, error } = await supabase
     .from('bookings')
@@ -24,12 +26,12 @@ export default async function AdminClientsPage() {
       status,
       payment_status
     `)
+    .eq('tenant_id', tenant.id)
     .order('created_at', { ascending: false });
 
   if (error) {
     return (
       <main className="section shell">
-        <p className="eyebrow">Admin</p>
         <h1>Clients</h1>
         <pre>{error.message}</pre>
       </main>
@@ -50,7 +52,7 @@ export default async function AdminClientsPage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Clients</h1>
+      <h1>{tenant.name} Clients</h1>
 
       {clientEmails.length === 0 ? (
         <div className="card card-body" style={{ marginTop: 24 }}>
@@ -66,9 +68,7 @@ export default async function AdminClientsPage() {
               <div key={email} className="card card-body">
                 <h2>{name}</h2>
                 <p className="muted">{email}</p>
-                <p className="muted">
-                  Total bookings: {clientBookings.length}
-                </p>
+                <p className="muted">Total bookings: {clientBookings.length}</p>
 
                 <div className="list-stack" style={{ marginTop: 16 }}>
                   {clientBookings.slice(0, 5).map((booking) => (
