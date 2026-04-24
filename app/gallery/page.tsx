@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 
 type PhotoRow = {
   id: string;
@@ -9,6 +10,7 @@ type PhotoRow = {
 
 export default async function GalleryPage() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const { data, error } = await supabase
     .from('booking_photos')
@@ -18,6 +20,7 @@ export default async function GalleryPage() {
       client_email,
       created_at
     `)
+    .eq('tenant_id', tenant.id)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -35,9 +38,9 @@ export default async function GalleryPage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Gallery</p>
-      <h1>Inspiration Gallery</h1>
+      <h1>{tenant.name} Gallery</h1>
       <p className="muted max-2xl">
-        Browse uploaded inspiration images and visual references connected to bookings.
+        Browse inspiration images and visual references connected to this brand’s bookings.
       </p>
 
       {photos.length === 0 ? (
@@ -60,21 +63,7 @@ export default async function GalleryPage() {
                     marginBottom: 12,
                   }}
                 />
-              ) : (
-                <div
-                  style={{
-                    width: '100%',
-                    height: 240,
-                    borderRadius: 12,
-                    marginBottom: 12,
-                    background: '#f4f1ed',
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  No Preview
-                </div>
-              )}
+              ) : null}
 
               <strong>{photo.client_email || 'Unknown Client'}</strong>
               <span className="muted">
