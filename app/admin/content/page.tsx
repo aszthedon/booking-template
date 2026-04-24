@@ -62,9 +62,6 @@ export default function AdminContentPage() {
     <main className="section shell">
       <p className="eyebrow">Admin</p>
       <h1>Content Manager</h1>
-      <p className="muted max-2xl">
-        Update public page content without editing code. JSON fields are used for structured content like FAQs and testimonials.
-      </p>
 
       <div className="page-stack" style={{ marginTop: 24 }}>
         {rows.map((row) => (
@@ -72,36 +69,25 @@ export default function AdminContentPage() {
             <h2>{row.content_key}</h2>
 
             <div className="form-stack">
-              <div>
-                <label>Title</label>
-                <input
-                  value={row.title || ''}
-                  onChange={(e) => updateField(row.id, 'title', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Body</label>
-                <textarea
-                  value={row.body || ''}
-                  onChange={(e) => updateField(row.id, 'body', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>JSON Content</label>
-                <textarea
-                  value={JSON.stringify(row.json_content ?? {}, null, 2)}
-                  onChange={(e) => {
-                    try {
-                      updateField(row.id, 'json_content', JSON.parse(e.target.value));
-                    } catch {
-                      // keep typing without crashing
-                    }
-                  }}
-                  style={{ minHeight: 260 }}
-                />
-              </div>
+              <input
+                value={row.title || ''}
+                onChange={(e) => updateField(row.id, 'title', e.target.value)}
+                placeholder="Title"
+              />
+              <textarea
+                value={row.body || ''}
+                onChange={(e) => updateField(row.id, 'body', e.target.value)}
+                placeholder="Body"
+              />
+              <textarea
+                value={JSON.stringify(row.json_content ?? {}, null, 2)}
+                onChange={(e) => {
+                  try {
+                    updateField(row.id, 'json_content', JSON.parse(e.target.value));
+                  } catch {}
+                }}
+                style={{ minHeight: 220 }}
+              />
 
               <button className="button" onClick={() => saveRow(row)} disabled={loading}>
                 {loading ? 'Saving...' : 'Save Content'}
