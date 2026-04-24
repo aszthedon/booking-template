@@ -3,8 +3,14 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+type Tenant = {
+  id: string;
+  name: string;
+};
+
 type NavLink = {
   id: string;
+  tenant_id: string | null;
   label: string;
   href: string;
   location: string;
@@ -15,6 +21,7 @@ type NavLink = {
 export default function AdminNavigationPage() {
   const supabase = createClient();
 
+  const [tenant, setTenant] = useState<Tenant | null>(null);
   const [links, setLinks] = useState<NavLink[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [newHref, setNewHref] = useState('');
@@ -25,13 +32,24 @@ export default function AdminNavigationPage() {
   }, []);
 
   async function loadLinks() {
-    const { data } = await supabase
+    const tenantRes = await fetch('/api/admin/current-tenant');
+    const tenantJson = await tenantRes.json();
+
+    if (!tenantRes.ok) {
+      alert(tenantJson.error || 'Failed to load tenant.');
+      return;
+    }
+
+    setTenant(tenantJson.tenant);
+
+    const { data, error } = await supabase
       .from('navigation_links')
       .select('*')
+      .eq('tenant_id', tenantJson.tenant.id)
       .order('location', { ascending: true })
       .order('sort_order', { ascending: true });
 
-    setLinks(data || []);
+    if (!error) setLinks(data || []);
   }
 
   function updateField(id: string, field: keyof NavLink, value: string | number | boolean) {
@@ -61,6 +79,8 @@ export default function AdminNavigationPage() {
   }
 
   async function addLink() {
+    if (!tenant) return;
+
     if (!newLabel || !newHref) {
       alert('Label and href are required.');
       return;
@@ -75,12 +95,12 @@ export default function AdminNavigationPage() {
       ) + 1;
 
     const { error } = await supabase.from('navigation_links').insert({
+      tenant_id: tenant.id,
       label: newLabel,
       href: newHref,
       location: newLocation,
       sort_order: maxOrder,
       is_active: true,
-      tenant_id: null,
     });
 
     if (error) {
@@ -133,7 +153,7 @@ export default function AdminNavigationPage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Navigation Manager</h1>
+      <h1>{tenant?.name || 'Brand'} Navigation</h1>
 
       <div className="card card-body" style={{ marginTop: 24 }}>
         <h2>Add Link</h2>
