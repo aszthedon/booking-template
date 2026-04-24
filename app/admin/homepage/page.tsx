@@ -3,8 +3,14 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+type Tenant = {
+  id: string;
+  name: string;
+};
+
 type HomepageSection = {
   id: string;
+  tenant_id: string | null;
   section_key: string;
   title: string | null;
   body: string | null;
@@ -17,6 +23,7 @@ type HomepageSection = {
 
 export default function AdminHomepagePage() {
   const supabase = createClient();
+  const [tenant, setTenant] = useState<Tenant | null>(null);
   const [sections, setSections] = useState<HomepageSection[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -25,9 +32,20 @@ export default function AdminHomepagePage() {
   }, []);
 
   async function loadSections() {
+    const tenantRes = await fetch('/api/admin/current-tenant');
+    const tenantJson = await tenantRes.json();
+
+    if (!tenantRes.ok) {
+      alert(tenantJson.error || 'Failed to load tenant.');
+      return;
+    }
+
+    setTenant(tenantJson.tenant);
+
     const { data, error } = await supabase
       .from('homepage_sections')
       .select('*')
+      .eq('tenant_id', tenantJson.tenant.id)
       .order('sort_order', { ascending: true });
 
     if (!error) setSections(data || []);
@@ -75,7 +93,7 @@ export default function AdminHomepagePage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Homepage Sections</h1>
+      <h1>{tenant?.name || 'Brand'} Homepage Sections</h1>
 
       <div className="page-stack" style={{ marginTop: 24 }}>
         {sections.map((section) => (
@@ -83,38 +101,12 @@ export default function AdminHomepagePage() {
             <h2>{section.section_key}</h2>
 
             <div className="form-stack">
-              <input
-                value={section.title || ''}
-                onChange={(e) => updateSection(section.id, 'title', e.target.value)}
-                placeholder="Title"
-              />
-              <textarea
-                value={section.body || ''}
-                onChange={(e) => updateSection(section.id, 'body', e.target.value)}
-                placeholder="Body"
-              />
-              <input
-                value={section.image_url || ''}
-                onChange={(e) => updateSection(section.id, 'image_url', e.target.value)}
-                placeholder="Image URL"
-              />
-              <input
-                value={section.cta_label || ''}
-                onChange={(e) => updateSection(section.id, 'cta_label', e.target.value)}
-                placeholder="CTA Label"
-              />
-              <input
-                value={section.cta_href || ''}
-                onChange={(e) => updateSection(section.id, 'cta_href', e.target.value)}
-                placeholder="CTA Href"
-              />
-              <input
-                type="number"
-                value={section.sort_order}
-                onChange={(e) => updateSection(section.id, 'sort_order', Number(e.target.value))}
-                placeholder="Sort Order"
-              />
-
+              <input value={section.title || ''} onChange={(e) => updateSection(section.id, 'title', e.target.value)} placeholder="Title" />
+              <textarea value={section.body || ''} onChange={(e) => updateSection(section.id, 'body', e.target.value)} placeholder="Body" />
+              <input value={section.image_url || ''} onChange={(e) => updateSection(section.id, 'image_url', e.target.value)} placeholder="Image URL" />
+              <input value={section.cta_label || ''} onChange={(e) => updateSection(section.id, 'cta_label', e.target.value)} placeholder="CTA Label" />
+              <input value={section.cta_href || ''} onChange={(e) => updateSection(section.id, 'cta_href', e.target.value)} placeholder="CTA Href" />
+              <input type="number" value={section.sort_order} onChange={(e) => updateSection(section.id, 'sort_order', Number(e.target.value))} placeholder="Sort Order" />
               <label>
                 <input
                   type="checkbox"
