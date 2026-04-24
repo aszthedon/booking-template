@@ -1,76 +1,168 @@
-import { createClient } from '@/lib/supabase/server';
-import { getCurrentTenant } from '@/lib/tenant';
+'use client';
 
-type AssetRow = {
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+
+type Tenant = {
   id: string;
-  title: string | null;
-  public_url: string | null;
-  created_at: string | null;
+  name: string;
 };
 
-export default async function AdminMediaPage() {
-  const supabase = await createClient();
-  const tenant = await getCurrentTenant();
+type Asset = {
+  id: string;
+  tenant_id: string | null;
+  title: string | null;
+  public_url: string;
+  file_path: string;
+};
 
-  const { data, error } = await supabase
-    .from('media_assets')
-    .select(`
-      id,
-      title,
-      public_url,
-      created_at
-    `)
-    .eq('tenant_id', tenant.id)
-    .order('created_at', { ascending: false });
+export default function AdminMediaPage() {
+  const supabase = createClient();
 
-  if (error) {
-    return (
-      <main className="section shell">
-        <h1>Media Library</h1>
-        <pre>{error.message}</pre>
-      </main>
-    );
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [title, setTitle] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    loadAssets();
+  }, []);
+
+  async function loadAssets() {
+    const tenantRes = await fetch('/api/admin/current-tenant');
+    const tenantJson = await tenantRes.json();
+
+    if (!tenantRes.ok) {
+      alert(tenantJson.error || 'Failed to load tenant.');
+      return;
+    }
+
+    setTenant(tenantJson.tenant);
+
+    const { data } = await supabase
+      .from('media_assets')
+      .select('id, tenant_id, title, public_url, file_path')
+      .eq('tenant_id', tenantJson.tenant.id)
+      .order('created_at', { ascending: false });
+
+    setAssets(data || []);
   }
 
-  const assets = (data ?? []) as AssetRow[];
+  async function uploadAsset() {
+    if (!tenant) return;
+    if (!file) {
+      alert('Choose a file first.');
+      return;
+    }
+
+    setUploading(true);
+
+    const cleanName = file.name.replace(/\s+/g, '-').toLowerCase();
+    const filePath = `${tenant.id}/${Date.now()}-${cleanName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('site-assets')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type,
+      });
+
+    if (uploadError) {
+      setUploading(false);
+      alert(uploadError.message);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('site-assets')
+      .getPublicUrl(filePath);
+
+    const { error: insertError } = await supabase
+      .from('media_assets')
+      .insert({
+        tenant_id: tenant.id,
+        title: title || file.name,
+        file_path: filePath,
+        public_url: publicUrlData.publicUrl,
+        asset_type: 'image',
+      });
+
+    setUploading(false);
+
+    if (insertError) {
+      alert(insertError.message);
+      return;
+    }
+
+    setTitle('');
+    setFile(null);
+    loadAssets();
+  }
+
+  async function deleteAsset(id: string) {
+    const { error } = await supabase
+      .from('media_assets')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    loadAssets();
+  }
 
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>{tenant.name} Media Library</h1>
+      <h1>{tenant?.name || 'Brand'} Media Library</h1>
 
-      {assets.length === 0 ? (
-        <div className="card card-body" style={{ marginTop: 24 }}>
-          <p>No media assets found.</p>
+      <div className="card card-body" style={{ marginTop: 24 }}>
+        <div className="form-stack">
+          <input
+            placeholder="Asset title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+          />
+          <button className="button" onClick={uploadAsset} disabled={uploading}>
+            {uploading ? 'Uploading...' : 'Upload Image'}
+          </button>
         </div>
-      ) : (
-        <div className="dashboard-grid" style={{ marginTop: 24 }}>
-          {assets.map((asset) => (
-            <div key={asset.id} className="card card-body">
-              {asset.public_url ? (
-                <img
-                  src={asset.public_url}
-                  alt={asset.title || 'Media asset'}
-                  style={{
-                    width: '100%',
-                    height: 220,
-                    objectFit: 'cover',
-                    borderRadius: 12,
-                    marginBottom: 12,
-                  }}
-                />
-              ) : null}
+      </div>
 
-              <strong>{asset.title || 'Untitled Asset'}</strong>
-              <span className="muted">
-                {asset.created_at
-                  ? new Date(asset.created_at).toLocaleString()
-                  : '—'}
-              </span>
+      <div className="dashboard-grid" style={{ marginTop: 24 }}>
+        {assets.map((asset) => (
+          <div key={asset.id} className="card card-body">
+            <img
+              src={asset.public_url}
+              alt={asset.title || 'Asset'}
+              style={{
+                width: '100%',
+                height: 220,
+                objectFit: 'cover',
+                borderRadius: 12,
+                marginBottom: 12,
+              }}
+            />
+            <strong>{asset.title || 'Untitled Asset'}</strong>
+            <span className="muted">{asset.public_url}</span>
+
+            <div className="actions-row" style={{ marginTop: 12 }}>
+              <button className="button secondary" onClick={() => deleteAsset(asset.id)}>
+                Delete
+              </button>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
