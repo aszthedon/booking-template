@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getCurrentTenant } from '@/lib/tenant';
 import { minutesToTime, parseTimeToMinutes, rangesOverlap } from '@/lib/time';
 
 function buildSlotMinutes(startHour: number, endHour: number, intervalMinutes: number) {
@@ -28,12 +29,15 @@ export async function GET(req: Request) {
   }
 
   const supabase = createAdminClient();
+  const tenant = await getCurrentTenant();
+
   const jsDate = new Date(`${date}T12:00:00`);
   const weekday = jsDate.getDay();
 
   const { data: blockedDate } = await supabase
     .from('provider_blocked_dates')
     .select('id')
+    .eq('tenant_id', tenant.id)
     .eq('staff_id', providerId)
     .eq('blocked_date', date)
     .maybeSingle();
@@ -49,6 +53,7 @@ export async function GET(req: Request) {
   const { data: providerHours, error: hoursError } = await supabase
     .from('provider_hours')
     .select('start_hour, end_hour, interval_minutes')
+    .eq('tenant_id', tenant.id)
     .eq('staff_id', providerId)
     .eq('weekday', weekday)
     .eq('is_active', true)
@@ -65,6 +70,7 @@ export async function GET(req: Request) {
   const { data: variation, error: variationError } = await supabase
     .from('service_variations')
     .select('service_id, duration_minutes, buffer_minutes')
+    .eq('tenant_id', tenant.id)
     .eq('id', variationId)
     .single();
 
@@ -78,6 +84,7 @@ export async function GET(req: Request) {
   const { data: override } = await supabase
     .from('staff_services')
     .select('duration_override_minutes, buffer_override_minutes')
+    .eq('tenant_id', tenant.id)
     .eq('staff_id', providerId)
     .eq('service_id', variation.service_id)
     .maybeSingle();
@@ -99,14 +106,13 @@ export async function GET(req: Request) {
     .select(`
       id,
       appointment_time,
-      status,
-      variation_id,
       service_variations (
         service_id,
         duration_minutes,
         buffer_minutes
       )
     `)
+    .eq('tenant_id', tenant.id)
     .eq('appointment_date', date)
     .eq('staff_id', providerId)
     .in('status', ['pending', 'confirmed']);
@@ -125,6 +131,7 @@ export async function GET(req: Request) {
     const { data: bookingOverride } = await supabase
       .from('staff_services')
       .select('duration_override_minutes, buffer_override_minutes')
+      .eq('tenant_id', tenant.id)
       .eq('staff_id', providerId)
       .eq('service_id', bookingVariation?.service_id)
       .maybeSingle();
