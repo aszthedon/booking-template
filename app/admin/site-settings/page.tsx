@@ -90,61 +90,17 @@ export default function AdminSiteSettingsPage() {
 
       <div className="card card-body" style={{ marginTop: 24 }}>
         <div className="form-stack">
-          <input
-            placeholder="Business Name"
-            value={settings.business_name || ''}
-            onChange={(e) => updateField('business_name', e.target.value)}
-          />
-          <input
-            placeholder="Tagline"
-            value={settings.tagline || ''}
-            onChange={(e) => updateField('tagline', e.target.value)}
-          />
-          <input
-            placeholder="Support Email"
-            value={settings.support_email || ''}
-            onChange={(e) => updateField('support_email', e.target.value)}
-          />
-          <input
-            placeholder="Phone"
-            value={settings.phone || ''}
-            onChange={(e) => updateField('phone', e.target.value)}
-          />
-          <input
-            placeholder="Address"
-            value={settings.address || ''}
-            onChange={(e) => updateField('address', e.target.value)}
-          />
-          <input
-            placeholder="Logo URL"
-            value={settings.logo_url || ''}
-            onChange={(e) => updateField('logo_url', e.target.value)}
-          />
-          <input
-            placeholder="Hero Image URL"
-            value={settings.hero_image_url || ''}
-            onChange={(e) => updateField('hero_image_url', e.target.value)}
-          />
-          <input
-            placeholder="Instagram URL"
-            value={settings.instagram_url || ''}
-            onChange={(e) => updateField('instagram_url', e.target.value)}
-          />
-          <input
-            placeholder="Facebook URL"
-            value={settings.facebook_url || ''}
-            onChange={(e) => updateField('facebook_url', e.target.value)}
-          />
-          <input
-            placeholder="TikTok URL"
-            value={settings.tiktok_url || ''}
-            onChange={(e) => updateField('tiktok_url', e.target.value)}
-          />
-          <input
-            placeholder="YouTube URL"
-            value={settings.youtube_url || ''}
-            onChange={(e) => updateField('youtube_url', e.target.value)}
-          />
+          <input value={settings.business_name || ''} onChange={(e) => updateField('business_name', e.target.value)} placeholder="Business Name" />
+          <input value={settings.tagline || ''} onChange={(e) => updateField('tagline', e.target.value)} placeholder="Tagline" />
+          <input value={settings.support_email || ''} onChange={(e) => updateField('support_email', e.target.value)} placeholder="Support Email" />
+          <input value={settings.phone || ''} onChange={(e) => updateField('phone', e.target.value)} placeholder="Phone" />
+          <input value={settings.address || ''} onChange={(e) => updateField('address', e.target.value)} placeholder="Address" />
+          <input value={settings.logo_url || ''} onChange={(e) => updateField('logo_url', e.target.value)} placeholder="Logo URL" />
+          <input value={settings.hero_image_url || ''} onChange={(e) => updateField('hero_image_url', e.target.value)} placeholder="Hero Image URL" />
+          <input value={settings.instagram_url || ''} onChange={(e) => updateField('instagram_url', e.target.value)} placeholder="Instagram URL" />
+          <input value={settings.facebook_url || ''} onChange={(e) => updateField('facebook_url', e.target.value)} placeholder="Facebook URL" />
+          <input value={settings.tiktok_url || ''} onChange={(e) => updateField('tiktok_url', e.target.value)} placeholder="TikTok URL" />
+          <input value={settings.youtube_url || ''} onChange={(e) => updateField('youtube_url', e.target.value)} placeholder="YouTube URL" />
 
           <button className="button" onClick={saveSettings} disabled={saving}>
             {saving ? 'Saving...' : 'Save Site Settings'}
