@@ -47,12 +47,16 @@ export default async function RootLayout({
   const supabase = await createClient();
   const tenant = await getCurrentTenant();
 
+  if (!tenant) {
+    throw new Error('No tenant returned from getCurrentTenant(). Check public.tenants and NEXT_PUBLIC_DEFAULT_TENANT_SLUG.');
+  }
+
   const { data: theme } = await supabase
     .from('theme_settings')
     .select('*')
     .eq('tenant_id', tenant.id)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   const themeVars = {
     '--bg': theme?.background_color || '#fffaf6',
