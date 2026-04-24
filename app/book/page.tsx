@@ -31,6 +31,7 @@ function isValidEmail(email: string) {
 export default function BookingPage() {
   const supabase = createClient();
 
+  const [tenantId, setTenantId] = useState('');
   const [services, setServices] = useState<Service[]>([]);
   const [variations, setVariations] = useState<Variation[]>([]);
   const [allStaff, setAllStaff] = useState<Staff[]>([]);
@@ -57,36 +58,33 @@ export default function BookingPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
-    loadServices();
-    loadStaff();
+    loadBootstrap();
   }, []);
 
-  async function loadServices() {
-    const { data } = await supabase
-      .from('services')
-      .select('id, name')
-      .eq('is_active', true);
+  async function loadBootstrap() {
+    const response = await fetch('/api/booking-bootstrap');
+    const result = await response.json();
 
-    setServices(data || []);
+    if (!response.ok) {
+      alert(result.error || 'Failed to load booking data.');
+      return;
+    }
+
+    setTenantId(result.tenantId || '');
+    setServices(result.services || []);
+    setAllStaff(result.staff || []);
   }
 
   async function loadVariations(serviceId: string) {
-    const { data } = await supabase
-      .from('service_variations')
-      .select('id, service_id, name, price, duration_minutes, buffer_minutes, deposit_type, deposit_value')
-      .eq('service_id', serviceId)
-      .eq('is_active', true);
+    const response = await fetch(`/api/service-variations?serviceId=${serviceId}`);
+    const result = await response.json();
 
-    setVariations(data || []);
-  }
+    if (!response.ok) {
+      alert(result.error || 'Failed to load service variations.');
+      return;
+    }
 
-  async function loadStaff() {
-    const { data } = await supabase
-      .from('staff')
-      .select('id, name')
-      .eq('is_active', true);
-
-    setAllStaff(data || []);
+    setVariations(result.variations || []);
   }
 
   async function loadStaffForService(serviceId: string) {
@@ -99,11 +97,12 @@ export default function BookingPage() {
           name
         )
       `)
+      .eq('tenant_id', tenantId)
       .eq('service_id', serviceId);
 
     const mapped =
       (data || [])
-        .map((row: any) => Array.isArray(row.staff) ? row.staff[0] : row.staff)
+        .map((row: any) => (Array.isArray(row.staff) ? row.staff[0] : row.staff))
         .filter(Boolean) || [];
 
     setFilteredStaff(mapped);
@@ -133,7 +132,7 @@ export default function BookingPage() {
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('Availability error:', result);
+      alert(result.error || 'Failed to load availability.');
       setAvailableSlots([]);
       setLoadingSlots(false);
       return;
@@ -146,7 +145,7 @@ export default function BookingPage() {
   }
 
   async function uploadPhotos(bookingId: string, clientEmail: string) {
-    if (files.length === 0) return;
+    if (files.length === 0 || !tenantId) return;
 
     for (const file of files) {
       const cleanName = file.name.replace(/\s+/g, '-').toLowerCase();
@@ -160,16 +159,14 @@ export default function BookingPage() {
           contentType: file.type,
         });
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        continue;
-      }
+      if (uploadError) continue;
 
       const { data: publicUrlData } = supabase.storage
         .from('inspiration-photos')
         .getPublicUrl(filePath);
 
       await supabase.from('booking_photos').insert({
+        tenant_id: tenantId,
         booking_id: bookingId,
         client_email: clientEmail,
         file_path: filePath,
@@ -401,11 +398,11 @@ export default function BookingPage() {
               <span>{date || 'No date'} {time ? `at ${time}` : ''}</span>
             </div>
             <div className="list-row">
-              <strong>Effective Duration</strong>
+              <strong>Duration</strong>
               <span>{selectedDuration || 0} min</span>
             </div>
             <div className="list-row">
-              <strong>Effective Buffer</strong>
+              <strong>Buffer</strong>
               <span>{selectedBuffer || 0} min</span>
             </div>
             <div className="list-row">
