@@ -2,15 +2,42 @@ import './globals.css';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteHeader } from '@/components/SiteHeader';
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: {
-    default: 'Crown Studio',
-    template: '%s | Crown Studio',
-  },
-  description: 'Luxury booking website template with admin-managed content.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const supabase = await createClient();
+  const tenant = await getCurrentTenant();
+
+  const [{ data: settings }, { data: homeContent }] = await Promise.all([
+    supabase
+      .from('site_settings')
+      .select('business_name, tagline')
+      .eq('tenant_id', tenant.id)
+      .limit(1)
+      .single(),
+    supabase
+      .from('site_content')
+      .select('title, body')
+      .eq('tenant_id', tenant.id)
+      .eq('content_key', 'homepage_content')
+      .maybeSingle(),
+  ]);
+
+  const businessName = settings?.business_name || tenant.name || 'Booking Template';
+  const description =
+    homeContent?.body ||
+    settings?.tagline ||
+    'Luxury booking website template with admin-managed content.';
+
+  return {
+    title: {
+      default: businessName,
+      template: `%s | ${businessName}`,
+    },
+    description,
+  };
+}
 
 export default async function RootLayout({
   children,
@@ -18,10 +45,12 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const { data: theme } = await supabase
     .from('theme_settings')
     .select('*')
+    .eq('tenant_id', tenant.id)
     .limit(1)
     .single();
 
