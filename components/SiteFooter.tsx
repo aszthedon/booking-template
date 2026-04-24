@@ -1,18 +1,22 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 
 export async function SiteFooter() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const [{ data: settings }, { data: links }] = await Promise.all([
     supabase
       .from('site_settings')
       .select('business_name, tagline, support_email, phone, address')
+      .eq('tenant_id', tenant.id)
       .limit(1)
       .single(),
     supabase
       .from('navigation_links')
       .select('label, href')
+      .eq('tenant_id', tenant.id)
       .eq('location', 'footer')
       .eq('is_active', true)
       .order('sort_order', { ascending: true }),
@@ -21,7 +25,7 @@ export async function SiteFooter() {
   return (
     <footer className="section shell">
       <div className="card card-body">
-        <h2>{settings?.business_name || 'Crown Studio'}</h2>
+        <h2>{settings?.business_name || tenant.name || 'Booking Template'}</h2>
         <p className="muted">
           {settings?.tagline || 'Luxury booking, polished branding, and a premium client experience.'}
         </p>
@@ -44,7 +48,7 @@ export async function SiteFooter() {
 
           <div className="list-stack">
             {(links || []).map((link) => (
-              <div key={`${link.location}-${link.href}-${link.label}`} className="list-row">
+              <div key={`${link.href}-${link.label}`} className="list-row">
                 <Link href={link.href}>{link.label}</Link>
               </div>
             ))}
