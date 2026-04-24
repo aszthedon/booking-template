@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getCurrentTenant } from '@/lib/tenant';
 
 type TestimonialItem = {
   name: string;
@@ -7,10 +8,12 @@ type TestimonialItem = {
 
 export default async function TestimonialsPage() {
   const supabase = await createClient();
+  const tenant = await getCurrentTenant();
 
   const { data } = await supabase
     .from('site_content')
     .select('title, body, json_content')
+    .eq('tenant_id', tenant.id)
     .eq('content_key', 'testimonials_page')
     .single();
 
@@ -21,7 +24,7 @@ export default async function TestimonialsPage() {
       <p className="eyebrow">Testimonials</p>
       <h1>{data?.title || 'What Clients Are Saying'}</h1>
       <p className="muted max-2xl">
-        {data?.body || 'Feedback from clients who have used the booking platform and appointment experience.'}
+        {data?.body || 'Feedback from clients who have used the platform.'}
       </p>
 
       <div className="dashboard-grid" style={{ marginTop: 24 }}>
