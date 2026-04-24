@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+type Tenant = {
+  id: string;
+  name: string;
+};
+
 type ThemePreset = {
   id: string;
   name: string;
@@ -26,6 +31,7 @@ type ThemeSettings = {
 
 export default function AdminThemePresetsPage() {
   const supabase = createClient();
+  const [tenant, setTenant] = useState<Tenant | null>(null);
   const [presets, setPresets] = useState<ThemePreset[]>([]);
   const [theme, setTheme] = useState<ThemeSettings | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,10 +41,26 @@ export default function AdminThemePresetsPage() {
   }, []);
 
   async function loadAll() {
-    const [{ data: presetData }, { data: themeData }] = await Promise.all([
-      supabase.from('theme_presets').select('*').order('created_at', { ascending: true }),
-      supabase.from('theme_settings').select('id').limit(1).single(),
-    ]);
+    const tenantRes = await fetch('/api/admin/current-tenant');
+    const tenantJson = await tenantRes.json();
+
+    if (!tenantRes.ok) {
+      alert(tenantJson.error || 'Failed to load tenant.');
+      return;
+    }
+
+    setTenant(tenantJson.tenant);
+
+    const [{ data: presetData }, { data: themeData }] =
+      await Promise.all([
+        supabase.from('theme_presets').select('*').order('created_at', { ascending: true }),
+        supabase
+          .from('theme_settings')
+          .select('id')
+          .eq('tenant_id', tenantJson.tenant.id)
+          .limit(1)
+          .single(),
+      ]);
 
     setPresets(presetData || []);
     setTheme(themeData || null);
@@ -80,12 +102,13 @@ export default function AdminThemePresetsPage() {
   return (
     <main className="section shell">
       <p className="eyebrow">Admin</p>
-      <h1>Theme Presets</h1>
+      <h1>{tenant?.name || 'Brand'} Theme Presets</h1>
 
       <div className="dashboard-grid" style={{ marginTop: 24 }}>
         {presets.map((preset) => (
           <div key={preset.id} className="card card-body">
             <h2>{preset.name}</h2>
+
             <div className="list-stack" style={{ marginTop: 12 }}>
               <div className="list-row">
                 <strong>Primary</strong>
