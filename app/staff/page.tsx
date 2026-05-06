@@ -1,9 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentTenant } from '@/lib/tenant';
+import { requireRole } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import StaffScheduleManager from '@/components/StaffScheduleManager';
 
 export default async function StaffDashboardPage() {
+  await requireRole('staff');
+
   const supabase = await createClient();
   const tenant = await getCurrentTenant();
 
