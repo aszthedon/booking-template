@@ -1,15 +1,11 @@
-import { requireUser } from '@/lib/auth';
+import { requireRole } from '@/lib/auth';
 
 export default async function ClientDashboardPage() {
-  await requireUser();
+  await requireRole('client');
 
   return (
     <main className="section shell">
-      <p className="eyebrow">Client Dashboard</p>
-      <h1>Welcome back</h1>
-      <p className="muted">
-        This private dashboard is where clients manage appointments, forms, payments, uploads, and preferences.
-      </p>
+      <h1>Client Dashboard</h1>
     </main>
   );
 }
