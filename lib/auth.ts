@@ -1,35 +1,19 @@
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
-export async function getCurrentUserWithProfile() {
+export async function requireUser() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  return { user, profile };
+  if (!user) redirect('/login');
+  return user;
 }
 
-export async function requireRole(
-  role: 'admin' | 'staff' | 'client'
-) {
+export async function requireRole(role: 'admin' | 'staff' | 'client') {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error('Not authenticated');
-  }
+  if (!user) redirect('/login');
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -38,7 +22,7 @@ export async function requireRole(
     .single();
 
   if (!profile || profile.role !== role) {
-    throw new Error('Unauthorized');
+    redirect('/unauthorized');
   }
 
   return user;
