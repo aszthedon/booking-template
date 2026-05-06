@@ -1,7 +1,6 @@
 import { requireUser } from '@/lib/auth';
 
 export default async function ClientDashboardPage() {
-  // 🔐 LOCK: must be logged in
   await requireUser();
 
   return (
