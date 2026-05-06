@@ -1,9 +1,11 @@
-export default function AdminPage() {
+import { requireRole } from '@/lib/auth';
+
+export default async function AdminPage() {
+  await requireRole('admin');
+
   return (
-    <main className="section shell">
-      <p className="eyebrow">Admin</p>
+    <div className="shell">
       <h1>Admin Dashboard</h1>
-      <p className="muted">Your admin area is loading correctly.</p>
-    </main>
+    </div>
   );
 }
