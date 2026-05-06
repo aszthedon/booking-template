@@ -38,9 +38,23 @@ export async function POST(req: Request) {
     const authClient = await createClient();
     const tenant = await getCurrentTenant();
 
+    if (!tenant?.id) {
+      return NextResponse.json(
+        { error: 'Tenant not found.' },
+        { status: 400 }
+      );
+    }
+
     const {
       data: { user },
     } = await authClient.auth.getUser();
+
+    if (!user || !user.id || !user.email) {
+      return NextResponse.json(
+        { error: 'You must be logged in to book an appointment.' },
+        { status: 401 }
+      );
+    }
 
     const { data: variation, error: variationError } = await supabase
       .from('service_variations')
@@ -51,7 +65,7 @@ export async function POST(req: Request) {
 
     if (variationError || !variation) {
       return NextResponse.json(
-        { error: 'Could not load selected service variation.' },
+        { error: 'Invalid service variation.' },
         { status: 400 }
       );
     }
@@ -67,8 +81,12 @@ export async function POST(req: Request) {
     const requestedStart = parseTimeToMinutes(appointment_time);
     const requestedEnd =
       requestedStart +
-      (override?.duration_override_minutes ?? variation.duration_minutes ?? 30) +
-      (override?.buffer_override_minutes ?? variation.buffer_minutes ?? 0);
+      (override?.duration_override_minutes ??
+        variation.duration_minutes ??
+        30) +
+      (override?.buffer_override_minutes ??
+        variation.buffer_minutes ??
+        0);
 
     const { data: existingBookings, error: existingError } = await supabase
       .from('bookings')
@@ -87,10 +105,11 @@ export async function POST(req: Request) {
       .in('status', ['pending', 'confirmed']);
 
     if (existingError) {
-      return NextResponse.json({ error: existingError.message }, { status: 500 });
+      return NextResponse.json(
+        { error: existingError.message },
+        { status: 500 }
+      );
     }
-
-    let hasConflict = false;
 
     for (const booking of existingBookings || []) {
       const bookingVariation = Array.isArray(booking.service_variations)
@@ -115,17 +134,19 @@ export async function POST(req: Request) {
           bookingVariation?.buffer_minutes ??
           0);
 
-      if (rangesOverlap(requestedStart, requestedEnd, existingStart, existingEnd)) {
-        hasConflict = true;
-        break;
+      if (
+        rangesOverlap(
+          requestedStart,
+          requestedEnd,
+          existingStart,
+          existingEnd
+        )
+      ) {
+        return NextResponse.json(
+          { error: 'That time is no longer available.' },
+          { status: 409 }
+        );
       }
-    }
-
-    if (hasConflict) {
-      return NextResponse.json(
-        { error: 'That time range is no longer available.' },
-        { status: 409 }
-      );
     }
 
     const { data: booking, error: insertError } = await supabase
@@ -135,14 +156,14 @@ export async function POST(req: Request) {
         service_id,
         variation_id,
         staff_id,
-        client_id: user?.id || null,
+        client_id: user.id,
         client_name,
         client_email,
         appointment_date,
         appointment_time,
         status: 'pending',
         payment_status: 'unpaid',
-        amount_due,
+        amount_due: amount_due ?? 0,
       })
       .select()
       .single();
@@ -155,8 +176,10 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ booking });
+
   } catch (error) {
     console.error('Create booking error:', error);
+
     return NextResponse.json(
       { error: 'Unexpected booking error.' },
       { status: 500 }
